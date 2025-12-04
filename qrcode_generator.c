@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <math.h>
 
-#define IMAGE_FILE_NAME "qrcode.ppm"
-
 #define BYTE_SIZE 8
 
 #define WHITE 0
@@ -825,12 +823,12 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
 #define IMAGE_FACTOR 10
 
 /* Print qrcode to ppm file */
-void print_matrix(unsigned char data[], int version) {
+void print_matrix_to_file(unsigned char data[], int version, char *file_name) {
 
     /* Padding is both above and below the qrcode, so add 2 to size */
     int size = get_qrcode_size(version) + 2*PADDING;
 
-    FILE *image = fopen(IMAGE_FILE_NAME, "wb");
+    FILE *image = fopen(file_name, "wb");
     fprintf(image, "P6\n");
     fprintf(image, "%d %d\n", (size)*IMAGE_FACTOR, (size)*IMAGE_FACTOR);
     fprintf(image, "255\n");
@@ -851,11 +849,12 @@ void print_matrix(unsigned char data[], int version) {
 }
 
 /* Print the qrcode to terminal (the ratio of a character is usually h/w=2, so printing 2 characters should be enough to make it readable in general)*/
-void print_ascii_matrix(unsigned char data[], int version) {
+void print_matrix(unsigned char data[], int version) {
 
     /* Padding is both above and below the qrcode, so add 2 to size */
     int size = get_qrcode_size(version) + 2*PADDING;
 
+    printf("\n");
     for (int i = 0; i < size; i++) {
         for (int j = 0; j < size; j++) {
             if (data[i*size + j] == WHITE)
@@ -872,10 +871,15 @@ int main(int argc, char **argv) {
 
     /* More information about qrcode generation */
     bool debug = false;
-    bool ascii_print = false;
+
+    /* File printing */
+    bool print_to_file = false;
+    char *file_name = NULL;
 
     /* Read input arguments */
     bool manual_version_choice = false;
+
+    /* Defaults */
     int version = 1;
     int correction_level = CORRECTION_LOW;
     char *input;
@@ -883,7 +887,7 @@ int main(int argc, char **argv) {
     int mask = MASK_ANY;
     for (int argv_count = 1; argv_count < argc; argv_count++) {
         if (!strcmp(argv[argv_count], "-h") || !strcmp(argv[argv_count], "--help")) {
-            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-e [correction (0-3)] (default: 0)\n-m [mask(0-7)] (default: best)\n-d (debug)\n--ascii (print to terminal instead of file)\n");
+            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-e [correction (0-3)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n-d (debug: more info on qrcode process)\n");
             return 0;
         } else if (!strcmp(argv[argv_count], "-d")) {
             debug = true;
@@ -909,8 +913,12 @@ int main(int argc, char **argv) {
                 if (mask < 0 || mask >= MASK_NUMBER)
                     mask = MASK_ANY;
             }
-        } else if (!strcmp(argv[argv_count], "--ascii")){
-            ascii_print = true;
+        } else if (!strcmp(argv[argv_count], "-o")) {
+            argv_count++;
+            if (argv_count < argc) {
+                print_to_file = true;
+                file_name = argv[argv_count];
+            }
         } else {
             input = argv[argv_count];
             input_length = strlen(input);
@@ -1088,8 +1096,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (ascii_print)
-        print_ascii_matrix(qrcode_with_padding, version);
+    if (print_to_file)
+        print_matrix_to_file(qrcode_with_padding, version, file_name);
     else
         print_matrix(qrcode_with_padding, version);
 
