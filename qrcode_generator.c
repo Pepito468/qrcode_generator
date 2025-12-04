@@ -879,6 +879,9 @@ int main(int argc, char **argv) {
     /* Read input arguments */
     bool manual_version_choice = false;
 
+    /* Invert colors */
+    bool negative_image = false;
+
     /* Defaults */
     int version = 1;
     int correction_level = CORRECTION_LOW;
@@ -887,7 +890,7 @@ int main(int argc, char **argv) {
     int mask = MASK_ANY;
     for (int argv_count = 1; argv_count < argc; argv_count++) {
         if (!strcmp(argv[argv_count], "-h") || !strcmp(argv[argv_count], "--help")) {
-            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-e [correction (0-3)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n-d (debug: more info on qrcode process)\n");
+            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-e [correction (0-3)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n--negative (invert colors)\n-d (debug: more info on qrcode process)\n");
             return 0;
         } else if (!strcmp(argv[argv_count], "-d")) {
             debug = true;
@@ -919,6 +922,8 @@ int main(int argc, char **argv) {
                 print_to_file = true;
                 file_name = argv[argv_count];
             }
+        } else if (!strcmp(argv[argv_count], "--negative")) {
+            negative_image = true;
         } else {
             input = argv[argv_count];
             input_length = strlen(input);
@@ -1095,6 +1100,13 @@ int main(int argc, char **argv) {
                 qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j] = WHITE;
         }
     }
+
+    if (negative_image)
+        for (int i = 0; i < get_qrcode_size(version) + 2*PADDING; i++) {
+            for (int j = 0; j < get_qrcode_size(version) + 2*PADDING; j++) {
+                qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j] = !qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j];
+            }
+        }
 
     if (print_to_file)
         print_matrix_to_file(qrcode_with_padding, version, file_name);

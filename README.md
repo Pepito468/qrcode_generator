@@ -6,6 +6,7 @@ help: [parameters] inputfile
 -e [correction (0-3)] (default: 0)
 -m [mask (0-7)] (default: best)
 -o [filename] (print to ppm file instead of to the terminal)
+--negative (invert colors)
 -d (debug: more info on qrcode process)
 ```
 *Only uses byte mode*.
