@@ -106,104 +106,24 @@ const int REMAINDER_BITS_NUMER[QRCODE_VERSIONS + 1] = {
     -1, 0, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0
 };
 
-/* Table with type information bits for every mask and correction level */
-const int TYPE_INFORMATION_BITS[MASK_NUMBER][CORRECTION_LEVELS][15] = {
-    { 
-        {1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0},
-        {1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0},
-        {0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1},
-        {0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1} 
-    },
-    {
-        {1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1},
-        {1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1},
-        {0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0},
-        {0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0} 
-    },
-    {
-        {1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0},
-        {1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0},
-        {0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1},
-        {0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1} 
-    },
-    {
-        {1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1},
-        {1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1},
-        {0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0},
-        {0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0} 
-    },
-    {
-        {1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 1},
-        {1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1},
-        {0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0},
-        {0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0} 
-    },
-    {
-        {1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0},
-        {1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0},
-        {0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1},
-        {0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1} 
-    },
-    {
-        {1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1},
-        {1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1},
-        {0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0},
-        {0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0} 
-    },
-    {
-        {1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0},
-        {1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0},
-        {0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1},
-        {0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1} 
-    }
-};
+/* Format data constants */
+#define FORMAT_INFORMATION_BITS_SIZE 15
+#define ERROR_CORRECTION_LEVEL_BITS_SIZE 2
+#define MASK_LEVEL_BITS_SIZE 3
+#define FORMAT_POSITION_THRESHOLD 5
+const unsigned char ERROR_CORRECTION_LEVEL_BITS[CORRECTION_LEVELS][2] = { {0, 1}, {0, 0}, {1, 1}, {1, 0} };
+#define FORMAT_STRING_GENERATOR_POLYNOMIAL_SIZE 11
+const unsigned char FORMAT_INFORMATION_GENERATOR_POLYNOMIAL[FORMAT_STRING_GENERATOR_POLYNOMIAL_SIZE] = {1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1};
+const unsigned char FORMAT_INFORMATION_MASK_STRING[FORMAT_INFORMATION_BITS_SIZE] = {1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0};
 
-/* Version information (qrcode versions from 1 to 6 do not have those) */
-const unsigned char VERSION_INFORMATION_BITS[][18] = {
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-    {0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0},
-    {0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0},
-    {0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1},
-    {0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1},
-    {0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1},
-    {0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0},
-    {0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1},
-    {0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1},
-    {0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0},
-    {0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0},
-    {0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1},
-    {0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1},
-    {0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0},
-    {0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0},
-    {0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1},
-    {0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1},
-    {0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 0},
-    {0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0},
-    {0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1},
-    {0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1},
-    {0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0},
-    {0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0},
-    {0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1},
-    {0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1},
-    {0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0},
-    {1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1},
-    {1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0},
-    {1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0},
-    {1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1},
-    {1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1},
-    {1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0},
-    {1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0},
-    {1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1},
-    {1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1}
-};
+/* Version information constants */
+#define VERSION_INFORMATION_BITS_SIZE 18
+#define VERSION_BITS_SIZE 6
+#define VERSION_INFORMATION_GENERATOR_POLYNOMIAL_SIZE 13
+#define VERSION_POSITION_THRESHOLD 6
+const unsigned char VERSION_INFORMATION_GENERATOR_POLYNOMIAL[VERSION_INFORMATION_GENERATOR_POLYNOMIAL_SIZE] = {1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1};
 
-/* Positions of align patterns */
+/* Positions of align patterns (V1 doesn't have any) */
 #define PATTERN_MAX_NUMBER 7
 const int ALIGN_PATTERN_LOCATION_DISTANCES[QRCODE_VERSIONS+1][PATTERN_MAX_NUMBER] = {
     {-1, -1, -1, -1, -1, -1, -1},
@@ -453,47 +373,73 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
                 qrcode[qrcode_size*(j) + qrcode_size - 11 + i].locked = LOCKED;
             }
         }
-        /* Manually put every bit in its place */
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 0].value = VERSION_INFORMATION_BITS[version][17];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 0].value = VERSION_INFORMATION_BITS[version][16];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 0].value = VERSION_INFORMATION_BITS[version][15];
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 1].value = VERSION_INFORMATION_BITS[version][14];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 1].value = VERSION_INFORMATION_BITS[version][13];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 1].value = VERSION_INFORMATION_BITS[version][12];
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 2].value = VERSION_INFORMATION_BITS[version][11];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 2].value = VERSION_INFORMATION_BITS[version][10];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 2].value = VERSION_INFORMATION_BITS[version][9];
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 3].value = VERSION_INFORMATION_BITS[version][8];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 3].value = VERSION_INFORMATION_BITS[version][7];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 3].value = VERSION_INFORMATION_BITS[version][6];
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 4].value = VERSION_INFORMATION_BITS[version][5];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 4].value = VERSION_INFORMATION_BITS[version][4];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 4].value = VERSION_INFORMATION_BITS[version][3];
-        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 5].value = VERSION_INFORMATION_BITS[version][2];
-        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 5].value = VERSION_INFORMATION_BITS[version][1];
-        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 5].value = VERSION_INFORMATION_BITS[version][0];
 
-        qrcode[qrcode_size*(0) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][17];
-        qrcode[qrcode_size*(0) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][16];
-        qrcode[qrcode_size*(0) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][15];
-        qrcode[qrcode_size*(1) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][14];
-        qrcode[qrcode_size*(1) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][13];
-        qrcode[qrcode_size*(1) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][12];
-        qrcode[qrcode_size*(2) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][11];
-        qrcode[qrcode_size*(2) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][10];
-        qrcode[qrcode_size*(2) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][9];
-        qrcode[qrcode_size*(3) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][8];
-        qrcode[qrcode_size*(3) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][7];
-        qrcode[qrcode_size*(3) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][6];
-        qrcode[qrcode_size*(4) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][5];
-        qrcode[qrcode_size*(4) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][4];
-        qrcode[qrcode_size*(4) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][3];
-        qrcode[qrcode_size*(5) + qrcode_size - 11 + 0].value = VERSION_INFORMATION_BITS[version][2];
-        qrcode[qrcode_size*(5) + qrcode_size - 11 + 1].value = VERSION_INFORMATION_BITS[version][1];
-        qrcode[qrcode_size*(5) + qrcode_size - 11 + 2].value = VERSION_INFORMATION_BITS[version][0];
+        /* Put version bits */
+        unsigned char version_bits[VERSION_INFORMATION_BITS_SIZE];
+        get_binary_from_integer(version, version_bits , VERSION_BITS_SIZE);
+        for (int i = VERSION_BITS_SIZE; i < VERSION_INFORMATION_BITS_SIZE; i++) {
+            version_bits[i] = 0;
+        }
+
+        /* Compute correction bits */
+        int current_position = 0;
+        while (version_bits[current_position] == 0)
+            current_position++;
+        while (current_position < VERSION_POSITION_THRESHOLD) {
+            for (int i = current_position; i < VERSION_INFORMATION_BITS_SIZE; i++) {
+                if (i - current_position < VERSION_INFORMATION_GENERATOR_POLYNOMIAL_SIZE)
+                    version_bits[i] ^= VERSION_INFORMATION_GENERATOR_POLYNOMIAL[i - current_position];
+                else
+                    version_bits[i] ^= 0;
+            }
+            while (version_bits[current_position] == 0)
+                current_position++;
+
+        }
+        /* Put the bits again, as the correction bits should be right after these */
+        get_binary_from_integer(version, version_bits, VERSION_BITS_SIZE);
+
+        /* Manually put every bit in its place */
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 0].value = version_bits[17];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 0].value = version_bits[16];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 0].value = version_bits[15];
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 1].value = version_bits[14];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 1].value = version_bits[13];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 1].value = version_bits[12];
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 2].value = version_bits[11];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 2].value = version_bits[10];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 2].value = version_bits[9];
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 3].value = version_bits[8];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 3].value = version_bits[7];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 3].value = version_bits[6];
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 4].value = version_bits[5];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 4].value = version_bits[4];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 4].value = version_bits[3];
+        qrcode[qrcode_size*(qrcode_size - 11 + 0) + 5].value = version_bits[2];
+        qrcode[qrcode_size*(qrcode_size - 11 + 1) + 5].value = version_bits[1];
+        qrcode[qrcode_size*(qrcode_size - 11 + 2) + 5].value = version_bits[0];
+
+        qrcode[qrcode_size*(0) + qrcode_size - 11 + 0].value = version_bits[17];
+        qrcode[qrcode_size*(0) + qrcode_size - 11 + 1].value = version_bits[16];
+        qrcode[qrcode_size*(0) + qrcode_size - 11 + 2].value = version_bits[15];
+        qrcode[qrcode_size*(1) + qrcode_size - 11 + 0].value = version_bits[14];
+        qrcode[qrcode_size*(1) + qrcode_size - 11 + 1].value = version_bits[13];
+        qrcode[qrcode_size*(1) + qrcode_size - 11 + 2].value = version_bits[12];
+        qrcode[qrcode_size*(2) + qrcode_size - 11 + 0].value = version_bits[11];
+        qrcode[qrcode_size*(2) + qrcode_size - 11 + 1].value = version_bits[10];
+        qrcode[qrcode_size*(2) + qrcode_size - 11 + 2].value = version_bits[9];
+        qrcode[qrcode_size*(3) + qrcode_size - 11 + 0].value = version_bits[8];
+        qrcode[qrcode_size*(3) + qrcode_size - 11 + 1].value = version_bits[7];
+        qrcode[qrcode_size*(3) + qrcode_size - 11 + 2].value = version_bits[6];
+        qrcode[qrcode_size*(4) + qrcode_size - 11 + 0].value = version_bits[5];
+        qrcode[qrcode_size*(4) + qrcode_size - 11 + 1].value = version_bits[4];
+        qrcode[qrcode_size*(4) + qrcode_size - 11 + 2].value = version_bits[3];
+        qrcode[qrcode_size*(5) + qrcode_size - 11 + 0].value = version_bits[2];
+        qrcode[qrcode_size*(5) + qrcode_size - 11 + 1].value = version_bits[1];
+        qrcode[qrcode_size*(5) + qrcode_size - 11 + 2].value = version_bits[0];
     }
 
-    /* §Lock Format Information cells */
+    /* Lock Format Information cells */
     qrcode[qrcode_size*(qrcode_size - 1) + 8].locked = LOCKED;
     qrcode[qrcode_size*(qrcode_size - 2) + 8].locked = LOCKED;
     qrcode[qrcode_size*(qrcode_size - 3) + 8].locked = LOCKED;
@@ -551,39 +497,73 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
             }
             break_from_masks = true;
         }
-        
-        /* Manually put the Format Information bits */
-        qrcode[qrcode_size*(qrcode_size - 1) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][0];
-        qrcode[qrcode_size*(qrcode_size - 2) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][1];
-        qrcode[qrcode_size*(qrcode_size - 3) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][2];
-        qrcode[qrcode_size*(qrcode_size - 4) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][3];
-        qrcode[qrcode_size*(qrcode_size - 5) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][4];
-        qrcode[qrcode_size*(qrcode_size - 6) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][5];
-        qrcode[qrcode_size*(qrcode_size - 7) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][6];
-        qrcode[qrcode_size*(8) + qrcode_size - 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][7];
-        qrcode[qrcode_size*(8) + qrcode_size - 7].value = TYPE_INFORMATION_BITS[current_mask][correction_level][8];
-        qrcode[qrcode_size*(8) + qrcode_size - 6].value = TYPE_INFORMATION_BITS[current_mask][correction_level][9];
-        qrcode[qrcode_size*(8) + qrcode_size - 5].value = TYPE_INFORMATION_BITS[current_mask][correction_level][10];
-        qrcode[qrcode_size*(8) + qrcode_size - 4].value = TYPE_INFORMATION_BITS[current_mask][correction_level][11];
-        qrcode[qrcode_size*(8) + qrcode_size - 3].value = TYPE_INFORMATION_BITS[current_mask][correction_level][12];
-        qrcode[qrcode_size*(8) + qrcode_size - 2].value = TYPE_INFORMATION_BITS[current_mask][correction_level][13];
-        qrcode[qrcode_size*(8) + qrcode_size - 1].value = TYPE_INFORMATION_BITS[current_mask][correction_level][14];
 
-        qrcode[qrcode_size*(8) + 0].value = TYPE_INFORMATION_BITS[current_mask][correction_level][0];
-        qrcode[qrcode_size*(8) + 1].value = TYPE_INFORMATION_BITS[current_mask][correction_level][1];
-        qrcode[qrcode_size*(8) + 2].value = TYPE_INFORMATION_BITS[current_mask][correction_level][2];
-        qrcode[qrcode_size*(8) + 3].value = TYPE_INFORMATION_BITS[current_mask][correction_level][3];
-        qrcode[qrcode_size*(8) + 4].value = TYPE_INFORMATION_BITS[current_mask][correction_level][4];
-        qrcode[qrcode_size*(8) + 5].value = TYPE_INFORMATION_BITS[current_mask][correction_level][5];
-        qrcode[qrcode_size*(8) + 7].value = TYPE_INFORMATION_BITS[current_mask][correction_level][6];
-        qrcode[qrcode_size*(8) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][7];
-        qrcode[qrcode_size*(7) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][8];
-        qrcode[qrcode_size*(5) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][9];
-        qrcode[qrcode_size*(4) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][10];
-        qrcode[qrcode_size*(3) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][11];
-        qrcode[qrcode_size*(2) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][12];
-        qrcode[qrcode_size*(1) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][13];
-        qrcode[qrcode_size*(0) + 8].value = TYPE_INFORMATION_BITS[current_mask][correction_level][14];
+        /* Get Format information bits */
+        unsigned char format_bits[FORMAT_INFORMATION_BITS_SIZE];
+        for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
+            format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
+        get_binary_from_integer(current_mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
+        for (int i = ERROR_CORRECTION_LEVEL_BITS_SIZE + MASK_LEVEL_BITS_SIZE; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+            format_bits[i] = 0;
+        }
+
+        /* Compute correction bits */
+        int current_position = 0;
+        while (format_bits[current_position] == 0)
+            current_position++;
+        while (current_position < FORMAT_POSITION_THRESHOLD) {
+            for (int i = current_position; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+                if (i - current_position < FORMAT_STRING_GENERATOR_POLYNOMIAL_SIZE)
+                    format_bits[i] ^= FORMAT_INFORMATION_GENERATOR_POLYNOMIAL[i - current_position];
+                else
+                    format_bits[i] ^= 0;
+            }
+            while (format_bits[current_position] == 0)
+                current_position++;
+
+        }
+        /* Put initial bits again as the correction bits should already be after them */
+        for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
+            format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
+        get_binary_from_integer(current_mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
+
+        /* Apply fixed mask */
+        for (int i = 0; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+            format_bits[i] ^= FORMAT_INFORMATION_MASK_STRING[i];
+        }
+
+        /* Manually put the Format Information bits */
+        qrcode[qrcode_size*(qrcode_size - 1) + 8].value = format_bits[0];
+        qrcode[qrcode_size*(qrcode_size - 2) + 8].value = format_bits[1];
+        qrcode[qrcode_size*(qrcode_size - 3) + 8].value = format_bits[2];
+        qrcode[qrcode_size*(qrcode_size - 4) + 8].value = format_bits[3];
+        qrcode[qrcode_size*(qrcode_size - 5) + 8].value = format_bits[4];
+        qrcode[qrcode_size*(qrcode_size - 6) + 8].value = format_bits[5];
+        qrcode[qrcode_size*(qrcode_size - 7) + 8].value = format_bits[6];
+        qrcode[qrcode_size*(8) + qrcode_size - 8].value = format_bits[7];
+        qrcode[qrcode_size*(8) + qrcode_size - 7].value = format_bits[8];
+        qrcode[qrcode_size*(8) + qrcode_size - 6].value = format_bits[9];
+        qrcode[qrcode_size*(8) + qrcode_size - 5].value = format_bits[10];
+        qrcode[qrcode_size*(8) + qrcode_size - 4].value = format_bits[11];
+        qrcode[qrcode_size*(8) + qrcode_size - 3].value = format_bits[12];
+        qrcode[qrcode_size*(8) + qrcode_size - 2].value = format_bits[13];
+        qrcode[qrcode_size*(8) + qrcode_size - 1].value = format_bits[14];
+
+        qrcode[qrcode_size*(8) + 0].value = format_bits[0];
+        qrcode[qrcode_size*(8) + 1].value = format_bits[1];
+        qrcode[qrcode_size*(8) + 2].value = format_bits[2];
+        qrcode[qrcode_size*(8) + 3].value = format_bits[3];
+        qrcode[qrcode_size*(8) + 4].value = format_bits[4];
+        qrcode[qrcode_size*(8) + 5].value = format_bits[5];
+        qrcode[qrcode_size*(8) + 7].value = format_bits[6];
+        qrcode[qrcode_size*(8) + 8].value = format_bits[7];
+        qrcode[qrcode_size*(7) + 8].value = format_bits[8];
+        qrcode[qrcode_size*(5) + 8].value = format_bits[9];
+        qrcode[qrcode_size*(4) + 8].value = format_bits[10];
+        qrcode[qrcode_size*(3) + 8].value = format_bits[11];
+        qrcode[qrcode_size*(2) + 8].value = format_bits[12];
+        qrcode[qrcode_size*(1) + 8].value = format_bits[13];
+        qrcode[qrcode_size*(0) + 8].value = format_bits[14];
 
         /* Insert Data (it needs to be reinserted for every mask applied) */
         int i = qrcode_size - 1;
