@@ -3,13 +3,14 @@ QRCode generator in C
 ```
 help: [parameters] inputfile
 -v [version (1-40)] (default: depends on input size)
--e [correction (0-3)] (default: 0)
+-c [correction (0: Low, 1: Medium, 2: Quartile, 3: High)] (default: 0)
 -m [mask (0-7)] (default: best)
 -o [filename] (print to ppm file instead of to the terminal)
+-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)
 --negative (invert colors)
 -d (debug: more info on qrcode process)
 ```
-*Only uses byte mode*.
+*Does not support Kanji mode*.
 ## To compile
 ```
 gcc qrcode_generator.c -lm -o qrcodegen
