@@ -881,15 +881,12 @@ int main(int argc, char **argv) {
         }
     }
 
-    /* Is user didn't specify any parameter, automatically choose them */
+    /* If not manually selected, choose best version for qrcode */
     if (!manual_version_choice)
-        /* Find adequate qrcode for the input length */
-        while (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length) {
+        while (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length && version < QRCODE_VERSIONS)
             version++;
-            if (version > QRCODE_VERSIONS)
-                break;
-        }
 
+    /* If input is too large, abort */
     if (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length) {
         printf("Input too large: [%d] (more than %d characters). Can't generate code...\n", input_length, QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding]);
         return 1;
