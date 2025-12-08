@@ -10,7 +10,7 @@ help: [parameters] inputfile
 --negative (invert colors)
 -d (debug: more info on qrcode process)
 ```
-*Does not support Kanji mode*.
+The program was tested on a UTF-8 locale.
 ## To compile
 ```
 gcc qrcode_generator.c -lm -o qrcodegen

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+#include <iconv.h>
 
 #define BYTE_SIZE 8
 
@@ -53,7 +54,7 @@ typedef struct qrcode_information {
 } qrcode_information_t;
 
 const qrcode_information_t QRCODE_INFO[QRCODE_VERSIONS + 1] = {
-    { {-1, -1, -1, -1}, -1, { {-1, -1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1, -1} }, {-1, -1, -1, -1, -1, -1, -1} },
+    { {-1, -1, -1, -1}, -1, { {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1} }, {-1, -1, -1, -1, -1, -1, -1} },
     { {10, 9, 8, 8}, 0, { { {41, 25, 17, 10}, 19, 7, 1, 19, 0, 0}, { {34, 20, 14, 8}, 16, 10, 1, 16, 0, 0}, { {27, 16, 11, 7}, 13, 13, 1, 13, 0, 0}, { {17, 10, 7, 4}, 9, 17, 1, 9, 0, 0} }, {-1, -1, -1, -1, -1, -1, -1} }, /* V1 doesn't have align patterns */
     { {10, 9, 8, 8}, 7, { {{77, 47, 32, 20}, 34, 10, 1, 34, 0, 0}, {{63, 38, 26, 16}, 28, 16, 1, 28, 0, 0}, {{48, 29, 20, 12}, 22, 22, 1, 22, 0, 0}, {{34, 20, 14, 8}, 16, 28, 1, 16, 0, 0} }, {6, 18, 6, 6, 6, 6, 6} }, /* trailing 6's in alignment pattern will be ignored */
     { {10, 9, 8, 8}, 7, { {{127, 77, 53, 32}, 55, 15, 1, 55, 0, 0}, {{101, 61, 42, 26}, 44, 26, 1, 44, 0, 0}, {{77, 47, 32, 20}, 34, 18, 2, 17, 0, 0}, {{58, 35, 24, 15}, 26, 22, 2, 13, 0, 0} }, {6, 22, 6, 6, 6, 6, 6} },
@@ -138,7 +139,7 @@ const unsigned char VERSION_INFORMATION_GENERATOR_POLYNOMIAL[VERSION_INFORMATION
  * */
 void get_binary_from_integer(unsigned int n, unsigned char *destination, unsigned int destination_size) {
     unsigned int temp = n;
-    int bit_count = 0;
+    unsigned int bit_count = 0;
     while (bit_count < destination_size) {
         if (temp > 0) {
             destination[destination_size - bit_count - 1] = temp % 2;
@@ -881,6 +882,10 @@ int main(int argc, char **argv) {
         }
     }
 
+    /* Kanji takes 3 bytes in utf-8, so the actual input size is 3 times smaller */
+    if (encoding == KANJI)
+        input_length /= 3;
+
     /* If not manually selected, choose best version for qrcode */
     if (!manual_version_choice)
         while (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length && version < QRCODE_VERSIONS)
@@ -912,7 +917,7 @@ int main(int argc, char **argv) {
         printf("]\n");
 
         if (mask == MASK_ANY)
-            printf("MASK: [auto]\n");
+            printf("MASK: [Auto]\n");
         else
             printf("MASK: [%d]\n", mask);
 
@@ -951,9 +956,7 @@ int main(int argc, char **argv) {
     get_binary_from_integer(input_length, information_buffer + sizeof(unsigned char)*information_buffer_position, QRCODE_INFO[version].character_count_indicator_size[encoding]);
     information_buffer_position += QRCODE_INFO[version].character_count_indicator_size[encoding];
 
-    /* Insert input into buffer */
-    int current_number = 0; /* Needed for some computations */
-
+    unsigned int current_number = 0; /* Needed for some computations */
     switch (encoding) {
         case NUMERIC:
             for (int i = 0; i < input_length; i++) {
@@ -1019,8 +1022,48 @@ int main(int argc, char **argv) {
             break;
 
         case KANJI:
-            printf("Kanji encoding not implemented.\n");
-            return 1;
+            current_number = 0;
+            /* Convert text from utf-8 to sjis */
+            iconv_t converter = iconv_open("SHIFT-JIS", "UTF-8");
+            /* In sjis every characters is 2 bytes long */
+            size_t max_converterd_size = QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] * 2;
+            /* Converted input container */
+            unsigned char sjis[max_converterd_size];
+            /* Container sizes in bytes (before and afterwards) */
+            size_t input_bytes = input_length*3;
+            size_t output_bytes = max_converterd_size;
+
+            char *input_p = input;
+            char *output_p = (char*) sjis;
+
+            /* Covert to sjis */
+            iconv(converter, &input_p, &input_bytes, &output_p, &output_bytes);
+
+            /* Get real text size after computation */
+            size_t real_coverted_size = max_converterd_size - output_bytes;
+
+            /* Convert bytes */
+            for (unsigned int i = 0; i < real_coverted_size; i += 2) {
+                current_number = (sjis[i] << 8) + sjis[i+1];
+                /* Only characters that are in the valid ranges can be encoded */
+                if (current_number >= 33088 && current_number <= 40956) {
+                    /* Subtract a magic number, then multiply the first byte by another number and sum it with the second byte (final size = 13) */
+                    current_number -= 33088;
+                    current_number = 192 * ((current_number & 65280) >> 8) + (current_number & 255);
+                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, 13);
+                    information_buffer_position += 13;
+
+                } else if (current_number >= 57408 && current_number <= 60351) {
+                    current_number -= 49472;
+                    current_number = 192 * ((current_number & 65289) >> 8) + (current_number & 255);
+                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, 13);
+                    information_buffer_position += 13;
+
+                } else {
+                    printf("Invalid Character found.\n");
+                    return 1;
+                }
+            }
             break;
     }
 
