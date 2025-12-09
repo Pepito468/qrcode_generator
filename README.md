@@ -10,9 +10,13 @@ help: [parameters] inputfile
 --negative (invert colors)
 -d (debug: more info on qrcode process)
 ```
-The program was tested on a UTF-8 locale.
+The program was tested with a UTF-8 locale.
 ## To compile
 ```
 gcc qrcode_generator.c -lm -o qrcodegen
+```
+On some systems *iconv* might need to be linked
+```
+gcc qrcode_generator.c -lm -liconv -o qrcodegen
 ```
 Made following [Thonky's guide](https://www.thonky.com/qr-code-tutorial/)

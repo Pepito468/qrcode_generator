@@ -18,6 +18,11 @@ typedef struct cell {
     bool locked;
 } cell_t;
 
+enum OUTPUT_TYPE {TERMINAL, FILE_PPM};
+
+/* Blank cells around the qrcode itself */
+#define QRCODE_PADDING 4
+
 #define QRCODE_VERSIONS 40
 
 #define CORRECTION_LEVELS 4
@@ -25,34 +30,39 @@ enum CORRECTION {LOW, MEDIUM, QUARTILE, HIGH};
 
 #define ENCODING_MODES 4
 enum ENCODING_MODE {NUMERIC, ALPHANUMERIC, BYTE, KANJI};
-
-#define PADDING 4
+#define NUMERIC_3_CHARACTER_SIZE 10
+#define NUMERIC_2_CHARACTER_SIZE 7
+#define NUMERIC_1_CHARACTER_SIZE 4
+#define ALPHANUMERIC_2_CHARACTER_SIZE 11
+#define ALPHANUMERIC_1_CHARACTER_SIZE 6
+#define KANJI_CHARACTER_SIZE 13
 
 #define MASK_NUMBER 8
 #define MASK_ANY -1
 
+/* Max number of alignment pattern in qrcodes */
 #define ALIGN_PATTERN_LOCATION_SIZE 7
 
-/* Table with the data about qrcodes I could not compute (so I just keep it here).
- * To make more sense, qrcodes go from 1 to 40 and not from 0 to 39 (the first row is filled with invalid parameters). */
 typedef struct version_related_information {
-    int character_capacity[ENCODING_MODES];
+    int character_capacity[ENCODING_MODES]; /* Character capacities for each possible encoding */
     int total_codewords;
     int error_correction_codewords_per_block;
     int blocks_in_group1;
     int data_codewords_per_block_in_group1;
     int blocks_in_group2;
     int data_codewords_per_block_in_group2;
-} version_related_information_t;
+} correction_level_related_information_t;
 
 typedef struct qrcode_information {
     int character_count_indicator_size[ENCODING_MODES];
     int remainder_bits;
-    version_related_information_t correction_level_info[CORRECTION_LEVELS];
+    correction_level_related_information_t correction_level_info[CORRECTION_LEVELS]; /* All information that are related to a specific correction level */
     int align_pattern_locations[ALIGN_PATTERN_LOCATION_SIZE];
 
 } qrcode_information_t;
 
+/* Table with the data about qrcodes I could not compute (so I just keep it here).
+ * To make more sense, qrcodes go from 1 to 40 and not from 0 to 39 (the first row is filled with invalid parameters). */
 const qrcode_information_t QRCODE_INFO[QRCODE_VERSIONS + 1] = {
     { {-1, -1, -1, -1}, -1, { {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1}, {{-1, -1, -1, -1}, -1, -1, -1, -1, -1, -1} }, {-1, -1, -1, -1, -1, -1, -1} },
     { {10, 9, 8, 8}, 0, { { {41, 25, 17, 10}, 19, 7, 1, 19, 0, 0}, { {34, 20, 14, 8}, 16, 10, 1, 16, 0, 0}, { {27, 16, 11, 7}, 13, 13, 1, 13, 0, 0}, { {17, 10, 7, 4}, 9, 17, 1, 9, 0, 0} }, {-1, -1, -1, -1, -1, -1, -1} }, /* V1 doesn't have align patterns */
@@ -97,11 +107,6 @@ const qrcode_information_t QRCODE_INFO[QRCODE_VERSIONS + 1] = {
     { {14, 13, 16, 12}, 0, { {{7089, 4296, 2953, 1817}, 2956, 30, 19, 118, 6, 119}, {{5596, 3391, 2331, 1435}, 2334, 28, 18, 47, 31, 48}, {{3993, 2420, 1663, 1024}, 1666, 30, 34, 24, 34, 25}, {{3057, 1852, 1273, 784}, 1276, 30, 20, 15, 61, 16} }, {6, 30, 58, 86, 114, 142, 170} },
 };
 
-/* Lookup tables for correction computation */
-#define LOOKUPTABLE_SIZE 256
-int log_lookup_table[LOOKUPTABLE_SIZE];
-int log_reverse_lookup_table[LOOKUPTABLE_SIZE];
-
 /* Encoding modes */
 #define MODE_INDICATOR_SIZE 4
 const unsigned char MODE_INDICATOR[ENCODING_MODES][MODE_INDICATOR_SIZE] = {
@@ -115,6 +120,11 @@ const unsigned char MODE_INDICATOR[ENCODING_MODES][MODE_INDICATOR_SIZE] = {
 #define TERMINATOR_MAX_SIZE 4
 /* Filler characters to add to data after the input if space is still not filled */
 const int FILLER_CHARACTERS[] = {236, 17};
+
+/* Lookup tables for correction computation */
+#define LOOKUPTABLE_SIZE 256
+int log_lookup_table[LOOKUPTABLE_SIZE];
+int log_reverse_lookup_table[LOOKUPTABLE_SIZE];
 
 /* Format data constants */
 #define FORMAT_INFORMATION_BITS_SIZE 15
@@ -152,10 +162,10 @@ void get_binary_from_integer(unsigned int n, unsigned char *destination, unsigne
 }
 
 /* Gets an integer from a binary value of 1 Byte */
-unsigned char get_integer_from_binary(unsigned char bytes[]) {
+unsigned char get_integer_from_binary(unsigned char bits[]) {
     int n = 0;
     for (int i = 0; i < BYTE_SIZE; i++ ) {
-        n += pow(2, BYTE_SIZE - 1 - i) * bytes[i];
+        n += pow(2, BYTE_SIZE - 1 - i) * bits[i];
     }
     return n;
 }
@@ -215,17 +225,17 @@ void get_correction_words(unsigned char message_polynomial[], int message_size, 
     }
 
     /* Compute correction bits */
-    int generator_pos = 0;
+    int polynomial_pos = 0;
     for (int i = 0; i < message_size; i++) {
         if (polynomial[i] != 0)  {
-            for (int j = generator_pos; j < generator_pos + generator_polynomial_size; j++) {
+            for (int j = polynomial_pos; j < polynomial_pos + generator_polynomial_size; j++) {
                 temp_computation[j] = (temp_polynomial[j] + log_reverse_lookup_table[polynomial[i]]) % 255;
             }
-            for (int j = generator_pos; j < generator_pos + generator_polynomial_size; j++) {
+            for (int j = polynomial_pos; j < polynomial_pos + generator_polynomial_size; j++) {
                 polynomial[j] = log_lookup_table[temp_computation[j]] ^ polynomial[j];
             }
         }
-        generator_pos++;
+        polynomial_pos++;
 
         /* Shift temp polynomial */
         for (int j = pol_dim - 1; j > 0; j--) {
@@ -236,14 +246,14 @@ void get_correction_words(unsigned char message_polynomial[], int message_size, 
 
     /* Fill destination with results */
     int count = 0;
-    for (int i = generator_pos; i < generator_pos + generator_polynomial_size - 1; i++) {
+    for (int i = polynomial_pos; i < polynomial_pos + generator_polynomial_size - 1; i++) {
         destination[count] = polynomial[i];
         count++;
     }
 
 }
 
-/* Fills the qrcode with patterns and data */
+/* Populates a qrcode with patterns and data bits */
 void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int correction_level, int mask) {
 
     int qrcode_size = get_qrcode_size(version);
@@ -337,7 +347,7 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
             }
         }
 
-        /* Put version bits */
+        /* Put Version Information bits */
         unsigned char version_bits[VERSION_INFORMATION_BITS_SIZE];
         get_binary_from_integer(version, version_bits , VERSION_BITS_SIZE);
         for (int i = VERSION_BITS_SIZE; i < VERSION_INFORMATION_BITS_SIZE; i++) {
@@ -434,380 +444,358 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
     qrcode[qrcode_size*(1) + 8].locked = LOCKED;
     qrcode[qrcode_size*(0) + 8].locked = LOCKED;
 
-    /* Select best mask and apply it */
-    int mask_penalties[MASK_NUMBER] = {0};
-    bool break_from_masks = false;
+    /* Get Format Information bits */
+    unsigned char format_bits[FORMAT_INFORMATION_BITS_SIZE];
+    for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
+        format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
+    get_binary_from_integer(mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
+    for (int i = ERROR_CORRECTION_LEVEL_BITS_SIZE + MASK_LEVEL_BITS_SIZE; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+        format_bits[i] = 0;
+    }
 
-    for (int current_mask = 0; current_mask < MASK_NUMBER + 1; current_mask++) {
-
-        /* If a manual mask is selected, bypass masks computations */
-        if (mask != MASK_ANY) {
-            current_mask = mask;
-            break_from_masks = true;
+    /* Compute correction bits */
+    int current_position = 0;
+    while (format_bits[current_position] == 0)
+        current_position++;
+    while (current_position < FORMAT_POSITION_THRESHOLD) {
+        for (int i = current_position; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+            if (i - current_position < FORMAT_STRING_GENERATOR_POLYNOMIAL_SIZE)
+                format_bits[i] ^= FORMAT_INFORMATION_GENERATOR_POLYNOMIAL[i - current_position];
+            else
+                format_bits[i] ^= 0;
         }
-
-        /* Compare penalties */
-        if (current_mask == MASK_NUMBER) {
-            int min_penalty = mask_penalties[0];
-            current_mask = 0;
-
-            int best_mask;
-            for (best_mask = 0; best_mask < MASK_NUMBER; best_mask++) {
-                if (min_penalty > mask_penalties[best_mask]) {
-                    min_penalty = mask_penalties[best_mask];
-                    current_mask = best_mask;
-                }
-            }
-            break_from_masks = true;
-        }
-
-        /* Get Format information bits */
-        unsigned char format_bits[FORMAT_INFORMATION_BITS_SIZE];
-        for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
-            format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
-        get_binary_from_integer(current_mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
-        for (int i = ERROR_CORRECTION_LEVEL_BITS_SIZE + MASK_LEVEL_BITS_SIZE; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
-            format_bits[i] = 0;
-        }
-
-        /* Compute correction bits */
-        int current_position = 0;
         while (format_bits[current_position] == 0)
             current_position++;
-        while (current_position < FORMAT_POSITION_THRESHOLD) {
-            for (int i = current_position; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
-                if (i - current_position < FORMAT_STRING_GENERATOR_POLYNOMIAL_SIZE)
-                    format_bits[i] ^= FORMAT_INFORMATION_GENERATOR_POLYNOMIAL[i - current_position];
-                else
-                    format_bits[i] ^= 0;
-            }
-            while (format_bits[current_position] == 0)
-                current_position++;
 
-        }
-        /* Put initial bits again as the correction bits should already be after them */
-        for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
-            format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
-        get_binary_from_integer(current_mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
-
-        /* Apply fixed mask */
-        for (int i = 0; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
-            format_bits[i] ^= FORMAT_INFORMATION_MASK_STRING[i];
-        }
-
-        /* Manually put the Format Information bits */
-        qrcode[qrcode_size*(qrcode_size - 1) + 8].value = format_bits[0];
-        qrcode[qrcode_size*(qrcode_size - 2) + 8].value = format_bits[1];
-        qrcode[qrcode_size*(qrcode_size - 3) + 8].value = format_bits[2];
-        qrcode[qrcode_size*(qrcode_size - 4) + 8].value = format_bits[3];
-        qrcode[qrcode_size*(qrcode_size - 5) + 8].value = format_bits[4];
-        qrcode[qrcode_size*(qrcode_size - 6) + 8].value = format_bits[5];
-        qrcode[qrcode_size*(qrcode_size - 7) + 8].value = format_bits[6];
-        qrcode[qrcode_size*(8) + qrcode_size - 8].value = format_bits[7];
-        qrcode[qrcode_size*(8) + qrcode_size - 7].value = format_bits[8];
-        qrcode[qrcode_size*(8) + qrcode_size - 6].value = format_bits[9];
-        qrcode[qrcode_size*(8) + qrcode_size - 5].value = format_bits[10];
-        qrcode[qrcode_size*(8) + qrcode_size - 4].value = format_bits[11];
-        qrcode[qrcode_size*(8) + qrcode_size - 3].value = format_bits[12];
-        qrcode[qrcode_size*(8) + qrcode_size - 2].value = format_bits[13];
-        qrcode[qrcode_size*(8) + qrcode_size - 1].value = format_bits[14];
-
-        qrcode[qrcode_size*(8) + 0].value = format_bits[0];
-        qrcode[qrcode_size*(8) + 1].value = format_bits[1];
-        qrcode[qrcode_size*(8) + 2].value = format_bits[2];
-        qrcode[qrcode_size*(8) + 3].value = format_bits[3];
-        qrcode[qrcode_size*(8) + 4].value = format_bits[4];
-        qrcode[qrcode_size*(8) + 5].value = format_bits[5];
-        qrcode[qrcode_size*(8) + 7].value = format_bits[6];
-        qrcode[qrcode_size*(8) + 8].value = format_bits[7];
-        qrcode[qrcode_size*(7) + 8].value = format_bits[8];
-        qrcode[qrcode_size*(5) + 8].value = format_bits[9];
-        qrcode[qrcode_size*(4) + 8].value = format_bits[10];
-        qrcode[qrcode_size*(3) + 8].value = format_bits[11];
-        qrcode[qrcode_size*(2) + 8].value = format_bits[12];
-        qrcode[qrcode_size*(1) + 8].value = format_bits[13];
-        qrcode[qrcode_size*(0) + 8].value = format_bits[14];
-
-        /* Insert Data (it needs to be reinserted for every mask applied) */
-        int i = qrcode_size - 1;
-        int j = qrcode_size - 1;
-        int current = 0;
-        enum states{ASCENDING, DESCENDING} state = ASCENDING;
-        bool is_right = true;
-        while (i != qrcode_size - 1 || j != 0) {
-            if (state == ASCENDING) {
-                if (qrcode[qrcode_size*(i) + j].locked == UNLOCKED) {
-                    qrcode[qrcode_size*(i) + j].value = data[current];
-                    current++;
-                }
-                if (is_right) {
-                    j -= 1;
-                    is_right = false;
-                } else {
-                    j += 1;
-                    is_right = true;
-                    if (i != 0) {
-                        i -= 1;
-                    } else {
-                        /* Rotate */
-                        state = DESCENDING;
-                        j = j == 8 ? 5 : j-2;
-                    }
-                }
-            } else if (state == DESCENDING) {
-                if (!qrcode[qrcode_size*(i) + j].locked) {
-                    qrcode[qrcode_size*(i) + j].value = data[current];
-                    current++;
-                }
-                if (is_right) {
-                    j -= 1;
-                    is_right = false;
-                } else {
-                    j += 1;
-                    is_right = true;
-                    if (i != qrcode_size - 1) {
-                        i += 1;
-                    } else {
-                        /* Rotate */
-                        state = ASCENDING;
-                        j = j == 8 ? 5 : j-2;
-                    }
-                }
-            }
-        }
-
-        /* Apply mask */
-        switch (current_mask) {
-            case 0:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((i + j) % 2 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 1:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((i) % 2 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 2:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((j) % 3 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 3:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((i + j) % 3 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 4:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((int)(floor((double)i/2) + floor((double)j/3)) % 2 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 5:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if (((i*j) % 2) + ((i*j) % 3) == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 6:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((((i*j) % 2) + ((i*j) % 3)) % 2 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-            case 7:
-                for (int i = 0; i < qrcode_size; i++) {
-                    for (int j = 0; j < qrcode_size; j++) {
-                        if ((((i+j) % 2) + ((i*j) % 3)) % 2 == 0 && !qrcode[qrcode_size*i + j].locked)
-                            qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
-                    }
-                }
-                break;
-        }
-
-        if (break_from_masks)
-            break;
-
-        /* Compute penalties */
-        /* Penalty 1: check for 5 or more blocks of the same color in a row (or column)*/
-        int same_color_counter = 0;
-        bool current_value = WHITE;
-        for (int i = 0; i < qrcode_size; i++) {
-            for (int j = 0; j < qrcode_size; j++) {
-                if (qrcode[qrcode_size*(i) + j].value == current_value) {
-                    same_color_counter++;
-                } else {
-                    if (same_color_counter >= 5)
-                        mask_penalties[current_mask] += (same_color_counter - 2);
-                    current_value = !current_value;
-                    same_color_counter = 1;
-                }
-            }
-            if (same_color_counter >= 5)
-                mask_penalties[current_mask] += (same_color_counter - 2);
-            same_color_counter = 0;
-        }
-        for (int j = 0; j < qrcode_size; j++) {
-            for (int i = 0; i < qrcode_size; i++) {
-                if (qrcode[qrcode_size*(i) + j].value == current_value) {
-                    same_color_counter++;
-                } else {
-                    if (same_color_counter >= 5)
-                        mask_penalties[current_mask] += (same_color_counter - 2);
-                    current_value = !current_value;
-                    same_color_counter = 1;
-                }
-            }
-            if (same_color_counter >= 5)
-                mask_penalties[current_mask] += (same_color_counter - 2);
-            same_color_counter = 0;
-        }
-
-        /* Penaly 2: check for blocks of 4 squares */
-        for (int i = 0; i < qrcode_size - 1; i++) {
-            for (int j = 0; j < qrcode_size - 1; j++) {
-                if (qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i) + j + 1].value &&
-                         qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i + 1) + j].value &&
-                         qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i + 1) + j + 1].value) {
-                    mask_penalties[current_mask] += 3;
-                }
-            }
-        }
-
-        /* Penalty 3: patterns BWBBBWBWWWW or WWWWBWBBBWB give penalties in rows or columns */
-        const int PENALY_PATTERN_SIZE = 11;
-        const char penalty_pattern1[] = {BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK, WHITE, WHITE, WHITE, WHITE};
-        const char penalty_pattern2[] = {WHITE, WHITE, WHITE, WHITE, BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK};
-
-        for (int i = 0; i < qrcode_size; i++) {
-            for (int j = 0; j < qrcode_size - PENALY_PATTERN_SIZE; j++) {
-                bool give_penalty = true;
-                for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
-                    if (qrcode[qrcode_size*(i) + j + p].value != penalty_pattern1[p]) {
-                        give_penalty = false;
-                        break;
-                    }
-                }
-                if (give_penalty)
-                    mask_penalties[current_mask] += 40;
-
-                give_penalty = true;
-                for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
-                    if (qrcode[qrcode_size*(i) + j + p].value != penalty_pattern2[p]) {
-                        give_penalty = false;
-                        break;
-                    }
-                }
-                if (give_penalty)
-                    mask_penalties[current_mask] += 40;
-            }
-        }
-        for (int i = 0; i < qrcode_size - PENALY_PATTERN_SIZE; i++) {
-            for (int j = 0; j < qrcode_size; j++) {
-                bool give_penalty = true;
-                for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
-                    if (qrcode[qrcode_size*(i + p) + j].value != penalty_pattern1[p]) {
-                        give_penalty = false;
-                        break;
-                    }
-                }
-                if (give_penalty)
-                    mask_penalties[current_mask] += 40;
-
-                give_penalty = true;
-                for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
-                    if (qrcode[qrcode_size*(i + p) + j].value != penalty_pattern2[p]) {
-                        give_penalty = false;
-                        break;
-                    }
-                }
-                if (give_penalty)
-                    mask_penalties[current_mask] += 40;
-            }
-        }
-
-        /* Penalty 4: based on the ratio between white and black cells */
-        int black_counter = 0;
-        int white_counter = 0;
-        for (int i = 0; i < qrcode_size; i++) {
-            for (int j = 0; j < qrcode_size; j++) {
-                if (qrcode[qrcode_size*(i) + j].value == BLACK)
-                    black_counter++;
-                else
-                    white_counter++;
-            }
-        }
-        int black_ratio = floor(((double) black_counter / (black_counter + white_counter)) * 100);
-        int candidate1 = abs(black_ratio - (black_ratio % 5) - 50);
-        int candidate2 = abs(black_ratio + (5 - (black_ratio % 5)) - 50);
-        mask_penalties[current_mask] += candidate1 < candidate2 ? candidate1*2 : candidate2*2;
     }
+    /* Put initial bits again as the correction bits should already be after them */
+    for (int i = 0; i < ERROR_CORRECTION_LEVEL_BITS_SIZE; i++)
+        format_bits[i] = ERROR_CORRECTION_LEVEL_BITS[correction_level][i];
+    get_binary_from_integer(mask, format_bits + ERROR_CORRECTION_LEVEL_BITS_SIZE, MASK_LEVEL_BITS_SIZE);
+
+    /* Apply fixed mask */
+    for (int i = 0; i < FORMAT_INFORMATION_BITS_SIZE; i++) {
+        format_bits[i] ^= FORMAT_INFORMATION_MASK_STRING[i];
+    }
+
+    /* Manually put the Format Information bits */
+    qrcode[qrcode_size*(qrcode_size - 1) + 8].value = format_bits[0];
+    qrcode[qrcode_size*(qrcode_size - 2) + 8].value = format_bits[1];
+    qrcode[qrcode_size*(qrcode_size - 3) + 8].value = format_bits[2];
+    qrcode[qrcode_size*(qrcode_size - 4) + 8].value = format_bits[3];
+    qrcode[qrcode_size*(qrcode_size - 5) + 8].value = format_bits[4];
+    qrcode[qrcode_size*(qrcode_size - 6) + 8].value = format_bits[5];
+    qrcode[qrcode_size*(qrcode_size - 7) + 8].value = format_bits[6];
+    qrcode[qrcode_size*(8) + qrcode_size - 8].value = format_bits[7];
+    qrcode[qrcode_size*(8) + qrcode_size - 7].value = format_bits[8];
+    qrcode[qrcode_size*(8) + qrcode_size - 6].value = format_bits[9];
+    qrcode[qrcode_size*(8) + qrcode_size - 5].value = format_bits[10];
+    qrcode[qrcode_size*(8) + qrcode_size - 4].value = format_bits[11];
+    qrcode[qrcode_size*(8) + qrcode_size - 3].value = format_bits[12];
+    qrcode[qrcode_size*(8) + qrcode_size - 2].value = format_bits[13];
+    qrcode[qrcode_size*(8) + qrcode_size - 1].value = format_bits[14];
+
+    qrcode[qrcode_size*(8) + 0].value = format_bits[0];
+    qrcode[qrcode_size*(8) + 1].value = format_bits[1];
+    qrcode[qrcode_size*(8) + 2].value = format_bits[2];
+    qrcode[qrcode_size*(8) + 3].value = format_bits[3];
+    qrcode[qrcode_size*(8) + 4].value = format_bits[4];
+    qrcode[qrcode_size*(8) + 5].value = format_bits[5];
+    qrcode[qrcode_size*(8) + 7].value = format_bits[6];
+    qrcode[qrcode_size*(8) + 8].value = format_bits[7];
+    qrcode[qrcode_size*(7) + 8].value = format_bits[8];
+    qrcode[qrcode_size*(5) + 8].value = format_bits[9];
+    qrcode[qrcode_size*(4) + 8].value = format_bits[10];
+    qrcode[qrcode_size*(3) + 8].value = format_bits[11];
+    qrcode[qrcode_size*(2) + 8].value = format_bits[12];
+    qrcode[qrcode_size*(1) + 8].value = format_bits[13];
+    qrcode[qrcode_size*(0) + 8].value = format_bits[14];
+
+    /* Insert Data */
+    int i = qrcode_size - 1;
+    int j = qrcode_size - 1;
+    int current = 0;
+    enum states{ASCENDING, DESCENDING} state = ASCENDING;
+    bool is_right = true;
+    while (i != qrcode_size - 1 || j != 0) {
+        if (state == ASCENDING) {
+            if (qrcode[qrcode_size*(i) + j].locked == UNLOCKED) {
+                qrcode[qrcode_size*(i) + j].value = data[current];
+                current++;
+            }
+            if (is_right) {
+                j -= 1;
+                is_right = false;
+            } else {
+                j += 1;
+                is_right = true;
+                if (i != 0) {
+                    i -= 1;
+                } else {
+                    /* Rotate */
+                    state = DESCENDING;
+                    j = j == 8 ? j-3 : j-2; /* Skip column 6 */
+                }
+            }
+        } else if (state == DESCENDING) {
+            if (qrcode[qrcode_size*(i) + j].locked == UNLOCKED) {
+                qrcode[qrcode_size*(i) + j].value = data[current];
+                current++;
+            }
+            if (is_right) {
+                j -= 1;
+                is_right = false;
+            } else {
+                j += 1;
+                is_right = true;
+                if (i != qrcode_size - 1) {
+                    i += 1;
+                } else {
+                    /* Rotate */
+                    state = ASCENDING;
+                    j = j == 8 ? j-3 : j-2; /* Skip column 6 */
+                }
+            }
+        }
+    }
+
+    /* Apply mask */
+    switch (mask) {
+        case 0:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((i + j) % 2 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 1:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((i) % 2 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 2:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((j) % 3 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 3:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((i + j) % 3 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 4:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((int)(floor((double)i/2) + floor((double)j/3)) % 2 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 5:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if (((i*j) % 2) + ((i*j) % 3) == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 6:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((((i*j) % 2) + ((i*j) % 3)) % 2 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+        case 7:
+            for (int i = 0; i < qrcode_size; i++) {
+                for (int j = 0; j < qrcode_size; j++) {
+                    if ((((i+j) % 2) + ((i*j) % 3)) % 2 == 0 && qrcode[qrcode_size*i + j].locked == UNLOCKED)
+                        qrcode[qrcode_size*i + j].value = !qrcode[qrcode_size*i + j].value;
+                }
+            }
+            break;
+    }
+}
+
+/* Computes the penalty of the given qrcode */
+unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
+    int qrcode_size = get_qrcode_size(version);
+    unsigned int penalty = 0;
+    /* Penalty 1: check for 5 or more blocks of the same color in a row (or column)*/
+    int same_color_counter = 0;
+    bool current_value = WHITE;
+    for (int i = 0; i < qrcode_size; i++) {
+        for (int j = 0; j < qrcode_size; j++) {
+            if (qrcode[qrcode_size*(i) + j].value == current_value) {
+                same_color_counter++;
+            } else {
+                if (same_color_counter >= 5)
+                    penalty += (same_color_counter - 2);
+                current_value = !current_value;
+                same_color_counter = 1;
+            }
+        }
+        if (same_color_counter >= 5)
+            penalty += (same_color_counter - 2);
+        same_color_counter = 0;
+    }
+    for (int j = 0; j < qrcode_size; j++) {
+        for (int i = 0; i < qrcode_size; i++) {
+            if (qrcode[qrcode_size*(i) + j].value == current_value) {
+                same_color_counter++;
+            } else {
+                if (same_color_counter >= 5)
+                    penalty += (same_color_counter - 2);
+                current_value = !current_value;
+                same_color_counter = 1;
+            }
+        }
+        if (same_color_counter >= 5)
+            penalty += (same_color_counter - 2);
+        same_color_counter = 0;
+    }
+
+    /* Penaly 2: check for blocks of 4 squares */
+    for (int i = 0; i < qrcode_size - 1; i++) {
+        for (int j = 0; j < qrcode_size - 1; j++) {
+            if (qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i) + j + 1].value &&
+                    qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i + 1) + j].value &&
+                    qrcode[qrcode_size*(i) + j].value == qrcode[qrcode_size*(i + 1) + j + 1].value) {
+                penalty += 3;
+            }
+        }
+    }
+
+    /* Penalty 3: patterns BWBBBWBWWWW or WWWWBWBBBWB give penalties in rows or columns */
+    const int PENALY_PATTERN_SIZE = 11;
+    const char penalty_pattern1[] = {BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK, WHITE, WHITE, WHITE, WHITE};
+    const char penalty_pattern2[] = {WHITE, WHITE, WHITE, WHITE, BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK};
+
+    for (int i = 0; i < qrcode_size; i++) {
+        for (int j = 0; j < qrcode_size - PENALY_PATTERN_SIZE; j++) {
+            bool give_penalty = true;
+            for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
+                if (qrcode[qrcode_size*(i) + j + p].value != penalty_pattern1[p]) {
+                    give_penalty = false;
+                    break;
+                }
+            }
+            if (give_penalty)
+                penalty += 40;
+
+            give_penalty = true;
+            for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
+                if (qrcode[qrcode_size*(i) + j + p].value != penalty_pattern2[p]) {
+                    give_penalty = false;
+                    break;
+                }
+            }
+            if (give_penalty)
+                penalty += 40;
+        }
+    }
+    for (int i = 0; i < qrcode_size - PENALY_PATTERN_SIZE; i++) {
+        for (int j = 0; j < qrcode_size; j++) {
+            bool give_penalty = true;
+            for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
+                if (qrcode[qrcode_size*(i + p) + j].value != penalty_pattern1[p]) {
+                    give_penalty = false;
+                    break;
+                }
+            }
+            if (give_penalty)
+                penalty += 40;
+
+            give_penalty = true;
+            for (int p = 0; p < PENALY_PATTERN_SIZE; p++) {
+                if (qrcode[qrcode_size*(i + p) + j].value != penalty_pattern2[p]) {
+                    give_penalty = false;
+                    break;
+                }
+            }
+            if (give_penalty)
+                penalty += 40;
+        }
+    }
+
+    /* Penalty 4: based on the ratio between white and black cells */
+    int black_counter = 0;
+    int white_counter = 0;
+    for (int i = 0; i < qrcode_size; i++) {
+        for (int j = 0; j < qrcode_size; j++) {
+            if (qrcode[qrcode_size*(i) + j].value == BLACK)
+                black_counter++;
+            else
+                white_counter++;
+        }
+    }
+    int black_ratio = floor(((double) black_counter / (black_counter + white_counter)) * 100);
+    int candidate1 = abs(black_ratio - (black_ratio % 5) - 50);
+    int candidate2 = abs(black_ratio + (5 - (black_ratio % 5)) - 50);
+    penalty += candidate1 < candidate2 ? candidate1*2 : candidate2*2;
+
+    return penalty;
 }
 
 #define IMAGE_FACTOR 10
 
-/* Print qrcode to ppm file */
-void print_matrix_to_file(unsigned char data[], int version, char *file_name) {
+/* Prints the qrcode matrix to the preferred output type.
+ * If the output is a file, specify the name in the 'output_file_name' variable (NULL if the output is not a file):
+ * */
+void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_type, char *output_file_name) {
 
     /* Padding is both above and below the qrcode, so add 2 to size */
-    int size = get_qrcode_size(version) + 2*PADDING;
+    int size = get_qrcode_size(version) + 2*QRCODE_PADDING;
 
-    FILE *image = fopen(file_name, "wb");
-    fprintf(image, "P6\n");
-    fprintf(image, "%d %d\n", (size)*IMAGE_FACTOR, (size)*IMAGE_FACTOR);
-    fprintf(image, "255\n");
-    for (int i = 0; i < size; i++) {
-        for (int g = 0; g < IMAGE_FACTOR; g++) {
-            for (int j = 0; j < size; j++) {
-                for (int f = 0; f < IMAGE_FACTOR; f++) {
-                    if (data[i*size+j] == WHITE) {
-                        fprintf(image, "%c%c%c", 0xFF, 0xFF, 0xFF);
-                    } else {
-                        fprintf(image, "%c%c%c", 0x00, 0x00, 0x00);
+    switch (output_type) {
+        case TERMINAL:
+            /* Print the qrcode to terminal (the ratio of a character is usually h/w=2, so printing 2 characters should be enough to make it readable in general)*/
+            printf("\n");
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    if (data[i*size + j] == WHITE)
+                        printf("██");
+                    else
+                        printf("░░");
+                }
+                printf("\n");
+            }
+            printf("\n");
+            break;
+        case FILE_PPM:
+            /* Print qrcode to ppm file */
+            printf("");
+            FILE *image = fopen(output_file_name, "wb");
+            fprintf(image, "P6\n");
+            fprintf(image, "%d %d\n", (size)*IMAGE_FACTOR, (size)*IMAGE_FACTOR);
+            fprintf(image, "255\n");
+            for (int i = 0; i < size; i++) {
+                for (int g = 0; g < IMAGE_FACTOR; g++) {
+                    for (int j = 0; j < size; j++) {
+                        for (int f = 0; f < IMAGE_FACTOR; f++) {
+                            if (data[i*size+j] == WHITE) {
+                                fprintf(image, "%c%c%c", 0xFF, 0xFF, 0xFF);
+                            } else {
+                                fprintf(image, "%c%c%c", 0x00, 0x00, 0x00);
+                            }
+                        }
                     }
                 }
             }
-        }
+            fclose(image);
+            break;
     }
-    fclose(image);
-}
-
-/* Print the qrcode to terminal (the ratio of a character is usually h/w=2, so printing 2 characters should be enough to make it readable in general)*/
-void print_matrix(unsigned char data[], int version) {
-
-    /* Padding is both above and below the qrcode, so add 2 to size */
-    int size = get_qrcode_size(version) + 2*PADDING;
-
-    printf("\n");
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < size; j++) {
-            if (data[i*size + j] == WHITE)
-                 printf("██");
-            else
-                 printf("░░");
-        }
-        printf("\n");
-    }
-    printf("\n");
 }
 
 int main(int argc, char **argv) {
@@ -815,15 +803,15 @@ int main(int argc, char **argv) {
     /* More information about qrcode generation */
     bool debug = false;
 
-    /* File printing */
-    bool print_to_file = false;
+    /* Output type */
+    enum OUTPUT_TYPE output_type = TERMINAL;
     char *file_name = NULL;
 
     /* Read input arguments */
     bool manual_version_choice = false;
 
     /* Invert colors */
-    bool negative_image = false;
+    bool negative = false;
 
     /* Defaults */
     int version = 1;
@@ -864,7 +852,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[argv_count], "-o")) {
             argv_count++;
             if (argv_count < argc) {
-                print_to_file = true;
+                output_type = FILE_PPM;
                 file_name = argv[argv_count];
             }
         } else if (!strcmp(argv[argv_count], "-e")) {
@@ -875,7 +863,7 @@ int main(int argc, char **argv) {
                     encoding = BYTE;
             }
         } else if (!strcmp(argv[argv_count], "--negative")) {
-            negative_image = true;
+            negative = true;
         } else {
             input = argv[argv_count];
             input_length = strlen(input);
@@ -967,7 +955,7 @@ int main(int argc, char **argv) {
                 current_number = current_number*10 + (input[i] - '0');
 
                 if ((i+1) % 3 == 0 || i == (input_length - 1)) {
-                    int data_size = (i+1) % 3 == 0 ? 10 : ((i+1) % 3 == 2 ? 7 : 4);
+                    int data_size = (i+1) % 3 == 0 ? NUMERIC_3_CHARACTER_SIZE : ((i+1) % 3 == 2 ? NUMERIC_2_CHARACTER_SIZE : NUMERIC_1_CHARACTER_SIZE);
                     get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, data_size);
                     information_buffer_position += data_size;
                     current_number = 0;
@@ -1006,7 +994,7 @@ int main(int argc, char **argv) {
                 }
 
                 if ((i+1) % 2 == 0 || i == (input_length - 1)) {
-                    int data_size = (i+1) % 2 == 0 ? 11 : 6;
+                    int data_size = (i+1) % 2 == 0 ? ALPHANUMERIC_2_CHARACTER_SIZE : ALPHANUMERIC_1_CHARACTER_SIZE;
                     get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, data_size);
                     information_buffer_position += data_size;
                     current_number = 0;
@@ -1046,18 +1034,18 @@ int main(int argc, char **argv) {
             for (unsigned int i = 0; i < real_coverted_size; i += 2) {
                 current_number = (sjis[i] << 8) + sjis[i+1];
                 /* Only characters that are in the valid ranges can be encoded */
-                if (current_number >= 33088 && current_number <= 40956) {
-                    /* Subtract a magic number, then multiply the first byte by another number and sum it with the second byte (final size = 13) */
-                    current_number -= 33088;
-                    current_number = 192 * ((current_number & 65280) >> 8) + (current_number & 255);
-                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, 13);
-                    information_buffer_position += 13;
+                if (current_number >= 0x8140 && current_number <= 0x9FFC) {
+                    /* Subtract a magic number, then multiply the first byte by another number and sum it with the second byte */
+                    current_number -= 0x8140;
+                    current_number = 0xC0*((current_number & 0xFF00) >> 8) + (current_number & 0x00FF);
+                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, KANJI_CHARACTER_SIZE);
+                    information_buffer_position += KANJI_CHARACTER_SIZE;
 
-                } else if (current_number >= 57408 && current_number <= 60351) {
-                    current_number -= 49472;
-                    current_number = 192 * ((current_number & 65289) >> 8) + (current_number & 255);
-                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, 13);
-                    information_buffer_position += 13;
+                } else if (current_number >= 0xE040 && current_number <= 0xEBBF) {
+                    current_number -= 0xC140;
+                    current_number = 0xC0*((current_number & 0xFF00) >> 8) + (current_number & 0x00FF);
+                    get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, KANJI_CHARACTER_SIZE);
+                    information_buffer_position += KANJI_CHARACTER_SIZE;
 
                 } else {
                     printf("Invalid Character found.\n");
@@ -1160,7 +1148,7 @@ int main(int argc, char **argv) {
     /* Fill final information buffer (data + error correction) */
     unsigned char qrcode_buffer[total_information_needed + ecc_per_block*(blocks1+blocks2)*BYTE_SIZE + QRCODE_INFO[version].remainder_bits];
     for (int i = 0; i < (words_per_block1 > words_per_block2 ? words_per_block1 : words_per_block2); i++) {
-        /* If the second group exists, its blocks are always 1 block larger than those in block 1 */
+        /* If the second group exists, its blocks are always larger than those in group 1 */
         if (i < words_per_block1) {
             for (int j = 0; j < blocks1; j++)
                 get_binary_from_integer(character_buffer[i + j*(words_per_block1)], qrcode_buffer + sizeof(unsigned char)*(i*(blocks1+blocks2) + j)*BYTE_SIZE, BYTE_SIZE);
@@ -1185,30 +1173,59 @@ int main(int argc, char **argv) {
     for (int i = 0; i < get_qrcode_size(version)*get_qrcode_size(version); i++) {
         qrcode[i].locked = UNLOCKED;
     }
-    populate_qrcode(qrcode, qrcode_buffer, version, correction_level, mask);
 
-    /* Create a qrcode grid with padding added */
-    unsigned char qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING) * (get_qrcode_size(version) + 2*PADDING)];
-    for (int i = 0; i < get_qrcode_size(version) + 2*PADDING; i++) {
-        for (int j = 0; j < get_qrcode_size(version) + 2*PADDING; j++) {
-            if (i >= PADDING && j >= PADDING && i < (get_qrcode_size(version) + PADDING) && j < (get_qrcode_size(version) + PADDING))
-                qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j] = qrcode[(get_qrcode_size(version))*(i - PADDING) + j - PADDING].value;
-            else
-                qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j] = WHITE;
+    /* If a specific mask is selected, skip penalty computations */
+    if (mask == MASK_ANY) {
+        /* Select best mask and apply it */
+        int mask_penalties[MASK_NUMBER] = {0};
+
+        /* Apply all masks and compute their penalties */
+        for (int current_mask = 0; current_mask < MASK_NUMBER; current_mask++) {
+            populate_qrcode(qrcode, qrcode_buffer, version, correction_level, current_mask);
+            mask_penalties[current_mask] = compute_qrcode_penalty(qrcode, version);
+        }
+
+        /* Compare penalties and select best mask */
+        int min_penalty = mask_penalties[0];
+        mask = 0;
+        for (int current_mask = 0; current_mask < MASK_NUMBER; current_mask++) {
+            if (min_penalty > mask_penalties[current_mask]) {
+                min_penalty = mask_penalties[current_mask];
+                mask = current_mask;
+            }
+        }
+        if (debug) {
+            printf("Mask Penalties:\n");
+            for (int i = 0; i < MASK_NUMBER; i++) {
+                printf("[%d]: %d, ", i, mask_penalties[i]);
+            }
+            printf("\nApplied Mask [%d]\n", mask);
         }
     }
 
-    if (negative_image)
-        for (int i = 0; i < get_qrcode_size(version) + 2*PADDING; i++) {
-            for (int j = 0; j < get_qrcode_size(version) + 2*PADDING; j++) {
-                qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j] = !qrcode_with_padding[(get_qrcode_size(version) + 2*PADDING)*(i) + j];
+    /* Populate with the best mask */
+    populate_qrcode(qrcode, qrcode_buffer, version, correction_level, mask);
+
+    /* Create a qrcode grid with padding added */
+    unsigned char qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING) * (get_qrcode_size(version) + 2*QRCODE_PADDING)];
+    for (int i = 0; i < get_qrcode_size(version) + 2*QRCODE_PADDING; i++) {
+        for (int j = 0; j < get_qrcode_size(version) + 2*QRCODE_PADDING; j++) {
+            if (i >= QRCODE_PADDING && j >= QRCODE_PADDING && i < (get_qrcode_size(version) + QRCODE_PADDING) && j < (get_qrcode_size(version) + QRCODE_PADDING))
+                qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = qrcode[(get_qrcode_size(version))*(i - QRCODE_PADDING) + j - QRCODE_PADDING].value;
+            else
+                qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = WHITE;
+        }
+    }
+
+    /* If selected, invert values */
+    if (negative)
+        for (int i = 0; i < get_qrcode_size(version) + 2*QRCODE_PADDING; i++) {
+            for (int j = 0; j < get_qrcode_size(version) + 2*QRCODE_PADDING; j++) {
+                qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = !qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j];
             }
         }
 
-    if (print_to_file)
-        print_matrix_to_file(qrcode_with_padding, version, file_name);
-    else
-        print_matrix(qrcode_with_padding, version);
+    print_matrix(qrcode_with_padding, version, output_type, file_name);
 
     return 0;
 }
