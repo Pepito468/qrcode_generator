@@ -8,9 +8,10 @@ help: [parameters] inputfile
 -o [filename] (print to ppm file instead of to the terminal)
 -e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)
 --negative (invert colors)
+--iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)
 -d (debug: more info on qrcode process)
 ```
-The program was tested with a UTF-8 locale.
+The program may or may not work on a non-UTF-8 locale system.
 ## To compile
 ```
 gcc qrcode_generator.c -lm -o qrcodegen

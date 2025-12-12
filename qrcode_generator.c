@@ -775,7 +775,7 @@ void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_typ
             break;
         case FILE_PPM:
             /* Print qrcode to ppm file */
-            printf("");
+            ;
             FILE *image = fopen(output_file_name, "wb");
             fprintf(image, "P6\n");
             fprintf(image, "%d %d\n", (size)*IMAGE_FACTOR, (size)*IMAGE_FACTOR);
@@ -813,6 +813,9 @@ int main(int argc, char **argv) {
     /* Invert colors */
     bool negative = false;
 
+    /* ISO-8859-1 compatibility */
+    bool iso = false;
+
     /* Defaults */
     int version = 1;
     enum CORRECTION correction_level = LOW;
@@ -823,7 +826,7 @@ int main(int argc, char **argv) {
     int mask = MASK_ANY;
     for (int argv_count = 1; argv_count < argc; argv_count++) {
         if (!strcmp(argv[argv_count], "-h") || !strcmp(argv[argv_count], "--help")) {
-            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-c [correction (0: Low, 1: Medium, 2: Quartile, 3: High)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)\n--negative (invert colors)\n-d (debug: more info on qrcode process)\n");
+            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-c [correction (0: Low, 1: Medium, 2: Quartile, 3: High)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)\n--negative (invert colors)\n--iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)\n-d (debug: more info on qrcode process)\n");
             return 0;
         } else if (!strcmp(argv[argv_count], "-d")) {
             debug = true;
@@ -864,6 +867,8 @@ int main(int argc, char **argv) {
             }
         } else if (!strcmp(argv[argv_count], "--negative")) {
             negative = true;
+        } else if (!strcmp(argv[argv_count], "--iso")) {
+            iso = true;
         } else {
             input = argv[argv_count];
             input_length = strlen(input);
@@ -925,6 +930,18 @@ int main(int argc, char **argv) {
                 break;
         }
         printf("]\n");
+        printf("Output type: [");
+        switch (output_type) {
+            case TERMINAL:
+                printf("Terminal");
+                break;
+            case FILE_PPM:
+                printf("FilePPM");
+                break;
+        }
+        printf("]\n");
+        printf("negative: [%s]\n", negative ? "enabled" : "disabled");
+        printf("iso: [%s]\n", iso ? "enabled" : "disabled");
         printf("\n");
     }
 
@@ -1003,9 +1020,25 @@ int main(int argc, char **argv) {
             break;
 
         case BYTE:
-            for (int i = 0; i < input_length; i++) {
-                get_binary_from_integer(input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
-                information_buffer_position += BYTE_SIZE;
+            if (iso) {
+                /* ISO-8859-1 */
+                iconv_t converter = iconv_open("ISO-8859-1", "UTF-8");
+                char converted_input[input_length]; /* The ISO string has at most the same length as UTF-8 */
+                char *input_p = input;
+                char *output_p = converted_input;
+                size_t input_bytes = input_length;
+                size_t output_bytes = input_length;
+                iconv(converter, &input_p, &input_bytes, &output_p, &output_bytes);
+                for (int i = 0; i < input_length; i++) {
+                    get_binary_from_integer(converted_input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
+                    information_buffer_position += BYTE_SIZE;
+                }
+            } else {
+                /* UTF-8 */
+                for (int i = 0; i < input_length; i++) {
+                    get_binary_from_integer(input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
+                    information_buffer_position += BYTE_SIZE;
+                }
             }
             break;
 
