@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+#include <stddef.h>
 #include <iconv.h>
 
 #define BYTE_SIZE 8
@@ -44,7 +45,7 @@ enum ENCODING_MODE {NUMERIC, ALPHANUMERIC, BYTE, KANJI};
 #define ALIGN_PATTERN_LOCATION_SIZE 7
 
 typedef struct version_related_information {
-    int character_capacity[ENCODING_MODES]; /* Character capacities for each possible encoding */
+    size_t character_capacity[ENCODING_MODES]; /* Character capacities for each possible encoding */
     int total_codewords;
     int error_correction_codewords_per_block;
     int blocks_in_group1;
@@ -174,6 +175,43 @@ unsigned char get_integer_from_binary(unsigned char bits[]) {
 int get_qrcode_size(int version) {
     return (version * 4) + 17;
 }
+
+/* Gets the length in bytes of the converted input */
+size_t get_input_length_bytes_converted(char *input, size_t input_length_bytes, char* encoding) {
+
+    size_t converted_bytes = input_length_bytes;
+    size_t input_length_counter = input_length_bytes;
+
+    iconv_t converter;
+
+    /* Cases where the length changes */
+    converter = iconv_open(encoding, "UTF-8");
+
+    /* Assuming converted formats occupy less space than the original */
+    char temp[input_length_bytes];
+    char *temp_buffer = temp;
+
+    /* Covert ti get input size */
+    iconv(converter, &input, &input_length_counter, &temp_buffer, &converted_bytes);
+
+    iconv_close(converter);
+
+    /* Return the number of bytes that were actually converted */
+    return input_length_bytes - converted_bytes;
+}
+
+/* Converts the input if a new format is needed */
+void convert_input(char *input, char *new_input, size_t old_input_length, size_t real_input_length, char* encoding) {
+
+    iconv_t converter;
+
+    converter = iconv_open(encoding, "UTF-8");
+
+    iconv(converter, &input, &old_input_length, &new_input, &real_input_length);
+
+    iconv_close(converter);
+}
+
 
 /* Gets the generator polynomial from the given error correction codeblocks */
 void get_generator_polynomial(unsigned char destinantion[], int ec_codeblocks) {
@@ -822,7 +860,7 @@ int main(int argc, char **argv) {
     enum ENCODING_MODE encoding = BYTE;
 
     char *input;
-    int input_length = 0;
+    size_t input_length_bytes = 0;
     int mask = MASK_ANY;
     for (int argv_count = 1; argv_count < argc; argv_count++) {
         if (!strcmp(argv[argv_count], "-h") || !strcmp(argv[argv_count], "--help")) {
@@ -871,22 +909,50 @@ int main(int argc, char **argv) {
             iso = true;
         } else {
             input = argv[argv_count];
-            input_length = strlen(input);
+            input_length_bytes = strlen(input);
         }
     }
 
-    /* Kanji takes 3 bytes in utf-8, so the actual input size is 3 times smaller */
+    /* Get the real size for some encodings, since they differ from the UTF-8 size
+     * By default, the char count is the byte count of the input
+     * input_byte_count differs from input_length_bytes_converted: the former is the actual size of bytes that will be put in the qrcode
+     * */
+    size_t input_byte_count = input_length_bytes;
+    size_t input_length_bytes_converted = input_length_bytes;
     if (encoding == KANJI)
-        input_length /= 3;
+        input_length_bytes_converted = get_input_length_bytes_converted(input, input_length_bytes, "SHIFT-JIS");
+    else if (encoding == BYTE && iso == true)
+        input_length_bytes_converted = get_input_length_bytes_converted(input, input_length_bytes, "ISO-8859-1");
+
+    /* Allocate space for the converted input and fill it */
+    char converted_input[input_length_bytes_converted];
+
+    /* Convert the input to the new encoding, if needed */
+    if (encoding == KANJI) {
+        convert_input(input, converted_input, input_length_bytes, input_length_bytes_converted, "SHIFT-JIS");
+
+        /* Associate the real values */
+        input_byte_count = input_length_bytes_converted / 2; /* Every char in SJIS is 2 bytes long */
+        input_length_bytes = input_length_bytes_converted;
+        input = converted_input;
+
+    } else if (encoding == BYTE && iso == true) {
+        convert_input(input, converted_input, input_length_bytes, input_length_bytes_converted, "ISO-8859-1");
+
+        /* Associate the real values */
+        input_byte_count = input_length_bytes_converted; /* Every char in ISO is 1 byte long */
+        input_length_bytes = input_length_bytes_converted;
+        input = converted_input;
+    }
 
     /* If not manually selected, choose best version for qrcode */
     if (!manual_version_choice)
-        while (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length && version < QRCODE_VERSIONS)
+        while (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_byte_count && version < QRCODE_VERSIONS)
             version++;
 
     /* If input is too large, abort */
-    if (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_length) {
-        printf("Input too large: [%d] (more than %d characters). Can't generate code...\n", input_length, QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding]);
+    if (QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] < input_byte_count) {
+        printf("Input too large: [%lu] (more than %lu bytes). Can't generate code...\n", input_byte_count, QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding]);
         return 1;
     }
 
@@ -958,20 +1024,20 @@ int main(int argc, char **argv) {
     }
 
     /* Insert input length into buffer */
-    get_binary_from_integer(input_length, information_buffer + sizeof(unsigned char)*information_buffer_position, QRCODE_INFO[version].character_count_indicator_size[encoding]);
+    get_binary_from_integer(input_byte_count, information_buffer + sizeof(unsigned char)*information_buffer_position, QRCODE_INFO[version].character_count_indicator_size[encoding]);
     information_buffer_position += QRCODE_INFO[version].character_count_indicator_size[encoding];
 
     unsigned int current_number = 0; /* Needed for some computations */
     switch (encoding) {
         case NUMERIC:
-            for (int i = 0; i < input_length; i++) {
+            for (size_t i = 0; i < input_length_bytes; i++) {
                 if (input[i] < '0' || input[i] > '9') {
                     printf("Invalid character for Numeric encoding found: [%c].\n", input[i]);
                     return 1;
                 }
                 current_number = current_number*10 + (input[i] - '0');
 
-                if ((i+1) % 3 == 0 || i == (input_length - 1)) {
+                if ((i+1) % 3 == 0 || i == (input_length_bytes - 1)) {
                     int data_size = (i+1) % 3 == 0 ? NUMERIC_3_CHARACTER_SIZE : ((i+1) % 3 == 2 ? NUMERIC_2_CHARACTER_SIZE : NUMERIC_1_CHARACTER_SIZE);
                     get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, data_size);
                     information_buffer_position += data_size;
@@ -981,8 +1047,9 @@ int main(int argc, char **argv) {
             break;
 
         case ALPHANUMERIC:
-            for (int i = 0; i < input_length; i++) {
+            for (size_t i = 0; i < input_length_bytes; i++) {
                 unsigned char current_character = input[i];
+                /* Every char is assigned a value */
                 if (current_character >= '0' && current_character <= '9')
                     current_number = current_number*45 + (current_character - '0');
                 else if (current_character >= 'A' && current_character <= 'Z')
@@ -1010,7 +1077,7 @@ int main(int argc, char **argv) {
                     return 1;
                 }
 
-                if ((i+1) % 2 == 0 || i == (input_length - 1)) {
+                if ((i+1) % 2 == 0 || i == (input_length_bytes - 1)) {
                     int data_size = (i+1) % 2 == 0 ? ALPHANUMERIC_2_CHARACTER_SIZE : ALPHANUMERIC_1_CHARACTER_SIZE;
                     get_binary_from_integer(current_number, information_buffer + sizeof(unsigned char)*information_buffer_position, data_size);
                     information_buffer_position += data_size;
@@ -1020,52 +1087,18 @@ int main(int argc, char **argv) {
             break;
 
         case BYTE:
-            if (iso) {
-                /* ISO-8859-1 */
-                iconv_t converter = iconv_open("ISO-8859-1", "UTF-8");
-                char converted_input[input_length]; /* The ISO string has at most the same length as UTF-8 */
-                char *input_p = input;
-                char *output_p = converted_input;
-                size_t input_bytes = input_length;
-                size_t output_bytes = input_length;
-                iconv(converter, &input_p, &input_bytes, &output_p, &output_bytes);
-                for (int i = 0; i < input_length; i++) {
-                    get_binary_from_integer(converted_input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
-                    information_buffer_position += BYTE_SIZE;
-                }
-            } else {
-                /* UTF-8 */
-                for (int i = 0; i < input_length; i++) {
-                    get_binary_from_integer(input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
-                    information_buffer_position += BYTE_SIZE;
-                }
+            for (size_t i = 0; i < input_length_bytes; i++) {
+                get_binary_from_integer(input[i], information_buffer + sizeof(unsigned char)*information_buffer_position, BYTE_SIZE);
+                information_buffer_position += BYTE_SIZE;
             }
             break;
 
         case KANJI:
             current_number = 0;
-            /* Convert text from utf-8 to sjis */
-            iconv_t converter = iconv_open("SHIFT-JIS", "UTF-8");
-            /* In sjis every characters is 2 bytes long */
-            size_t max_converterd_size = QRCODE_INFO[version].correction_level_info[correction_level].character_capacity[encoding] * 2;
-            /* Converted input container */
-            unsigned char sjis[max_converterd_size];
-            /* Container sizes in bytes (before and afterwards) */
-            size_t input_bytes = input_length*3;
-            size_t output_bytes = max_converterd_size;
-
-            char *input_p = input;
-            char *output_p = (char*) sjis;
-
-            /* Covert to sjis */
-            iconv(converter, &input_p, &input_bytes, &output_p, &output_bytes);
-
-            /* Get real text size after computation */
-            size_t real_coverted_size = max_converterd_size - output_bytes;
-
+            unsigned char *unsigned_input = (unsigned char*) input;
             /* Convert bytes */
-            for (unsigned int i = 0; i < real_coverted_size; i += 2) {
-                current_number = (sjis[i] << 8) + sjis[i+1];
+            for (size_t i = 0; i < input_length_bytes; i += 2) {
+                current_number = (unsigned_input[i] << 8) + unsigned_input[i+1];
                 /* Only characters that are in the valid ranges can be encoded */
                 if (current_number >= 0x8140 && current_number <= 0x9FFC) {
                     /* Subtract a magic number, then multiply the first byte by another number and sum it with the second byte */
