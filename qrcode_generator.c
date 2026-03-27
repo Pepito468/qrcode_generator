@@ -8,8 +8,8 @@
 
 #define BYTE_SIZE 8
 
-#define WHITE 0
-#define BLACK 1
+#define QRCODE_WHITE 0
+#define QRCODE_BLACK 1
 
 /* qrcode cell */
 #define LOCKED 1
@@ -302,37 +302,37 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
         for (int j = 0; j < 8; j++) {
             qrcode[qrcode_size*i + j].value = 0;
             qrcode[qrcode_size*i + j].locked = 1;
-            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = WHITE;
+            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = QRCODE_WHITE;
             qrcode[qrcode_size*(qrcode_size - 1 - i) + j].locked = LOCKED;
-            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = WHITE;
+            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = QRCODE_WHITE;
             qrcode[qrcode_size*(i) + qrcode_size - 1 - j].locked = LOCKED;
         }
     }
     /* fill outer black*/
     for (int i = 0; i < 7; i++) {
         for (int j = 0; j < 7; j++) {
-            qrcode[qrcode_size*i + j].value = BLACK;
+            qrcode[qrcode_size*i + j].value = QRCODE_BLACK;
             qrcode[qrcode_size*i + j].locked = LOCKED;
-            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = BLACK;
-            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = BLACK;
+            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = QRCODE_BLACK;
+            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = QRCODE_BLACK;
         }
     }
     /* fill inner white */
     for (int i = 1; i < 6; i++) {
         for (int j = 1; j < 6; j++) {
-            qrcode[qrcode_size*i + j].value = WHITE;
+            qrcode[qrcode_size*i + j].value = QRCODE_WHITE;
             qrcode[qrcode_size*i + j].locked = LOCKED;
-            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = WHITE;
-            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = WHITE;
+            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = QRCODE_WHITE;
+            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = QRCODE_WHITE;
         }
     }
     /* fill inner black */
     for (int i = 2; i < 5; i++) {
         for (int j = 2; j < 5; j++) {
-            qrcode[qrcode_size*i + j].value = BLACK;
+            qrcode[qrcode_size*i + j].value = QRCODE_BLACK;
             qrcode[qrcode_size*i + j].locked = LOCKED;
-            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = BLACK;
-            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = BLACK;
+            qrcode[qrcode_size*(qrcode_size - 1 - i) + j].value = QRCODE_BLACK;
+            qrcode[qrcode_size*(i) + qrcode_size - 1 - j].value = QRCODE_BLACK;
         }
     }
 
@@ -344,15 +344,15 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
                     for (int k = -2; k <= 2; k++) {
                         for (int h = -2; h <= 2; h++) {
                             qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i] + k) + QRCODE_INFO[version].align_pattern_locations[j] + h].locked = LOCKED;
-                            qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i] + k) + QRCODE_INFO[version].align_pattern_locations[j] + h].value = BLACK;
+                            qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i] + k) + QRCODE_INFO[version].align_pattern_locations[j] + h].value = QRCODE_BLACK;
                         }
                     }
                     for (int k = -1; k <= 1; k++) {
                         for (int h = -1; h <= 1; h++) {
-                            qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i] + k) + QRCODE_INFO[version].align_pattern_locations[j] + h].value = WHITE;
+                            qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i] + k) + QRCODE_INFO[version].align_pattern_locations[j] + h].value = QRCODE_WHITE;
                         }
                     }
-                    qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i]) + QRCODE_INFO[version].align_pattern_locations[j]].value = BLACK;
+                    qrcode[qrcode_size*(QRCODE_INFO[version].align_pattern_locations[i]) + QRCODE_INFO[version].align_pattern_locations[j]].value = QRCODE_BLACK;
                 }
             }
         }
@@ -372,7 +372,7 @@ void populate_qrcode(cell_t qrcode[], unsigned char data[], int version, int cor
     }
 
     /* Dark module and reserved areas */
-    qrcode[qrcode_size*(qrcode_size - 1 - 7) + 8].value = BLACK;
+    qrcode[qrcode_size*(qrcode_size - 1 - 7) + 8].value = QRCODE_BLACK;
     qrcode[qrcode_size*(qrcode_size - 1 - 7) + 8].locked = LOCKED;
 
     /* version 7 or above require a Version Information Area */
@@ -672,7 +672,7 @@ unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
     unsigned int penalty = 0;
     /* Penalty 1: check for 5 or more blocks of the same color in a row (or column)*/
     int same_color_counter = 0;
-    bool current_value = WHITE;
+    bool current_value = QRCODE_WHITE;
     for (int i = 0; i < qrcode_size; i++) {
         for (int j = 0; j < qrcode_size; j++) {
             if (qrcode[qrcode_size*(i) + j].value == current_value) {
@@ -717,8 +717,8 @@ unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
 
     /* Penalty 3: patterns BWBBBWBWWWW or WWWWBWBBBWB give penalties in rows or columns */
     const int PENALY_PATTERN_SIZE = 11;
-    const char penalty_pattern1[] = {BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK, WHITE, WHITE, WHITE, WHITE};
-    const char penalty_pattern2[] = {WHITE, WHITE, WHITE, WHITE, BLACK, WHITE, BLACK, BLACK, BLACK, WHITE, BLACK};
+    const char penalty_pattern1[] = {QRCODE_BLACK, QRCODE_WHITE, QRCODE_BLACK, QRCODE_BLACK, QRCODE_BLACK, QRCODE_WHITE, QRCODE_BLACK, QRCODE_WHITE, QRCODE_WHITE, QRCODE_WHITE, QRCODE_WHITE};
+    const char penalty_pattern2[] = {QRCODE_WHITE, QRCODE_WHITE, QRCODE_WHITE, QRCODE_WHITE, QRCODE_BLACK, QRCODE_WHITE, QRCODE_BLACK, QRCODE_BLACK, QRCODE_BLACK, QRCODE_WHITE, QRCODE_BLACK};
 
     for (int i = 0; i < qrcode_size; i++) {
         for (int j = 0; j < qrcode_size - PENALY_PATTERN_SIZE; j++) {
@@ -772,7 +772,7 @@ unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
     int white_counter = 0;
     for (int i = 0; i < qrcode_size; i++) {
         for (int j = 0; j < qrcode_size; j++) {
-            if (qrcode[qrcode_size*(i) + j].value == BLACK)
+            if (qrcode[qrcode_size*(i) + j].value == QRCODE_BLACK)
                 black_counter++;
             else
                 white_counter++;
@@ -802,7 +802,7 @@ void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_typ
             printf("\n");
             for (int i = 0; i < size; i++) {
                 for (int j = 0; j < size; j++) {
-                    if (data[i*size + j] == WHITE)
+                    if (data[i*size + j] == QRCODE_WHITE)
                         printf("██");
                     else
                         printf("░░");
@@ -822,7 +822,7 @@ void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_typ
                 for (int g = 0; g < IMAGE_FACTOR; g++) {
                     for (int j = 0; j < size; j++) {
                         for (int f = 0; f < IMAGE_FACTOR; f++) {
-                            if (data[i*size+j] == WHITE) {
+                            if (data[i*size+j] == QRCODE_WHITE) {
                                 fprintf(image, "%c%c%c", 0xFF, 0xFF, 0xFF);
                             } else {
                                 fprintf(image, "%c%c%c", 0x00, 0x00, 0x00);
@@ -1279,7 +1279,7 @@ int main(int argc, char **argv) {
             if (i >= QRCODE_PADDING && j >= QRCODE_PADDING && i < (get_qrcode_size(version) + QRCODE_PADDING) && j < (get_qrcode_size(version) + QRCODE_PADDING))
                 qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = qrcode[(get_qrcode_size(version))*(i - QRCODE_PADDING) + j - QRCODE_PADDING].value;
             else
-                qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = WHITE;
+                qrcode_with_padding[(get_qrcode_size(version) + 2*QRCODE_PADDING)*(i) + j] = QRCODE_WHITE;
         }
     }
 
