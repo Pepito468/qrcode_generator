@@ -11,13 +11,15 @@ help: [parameters] inputfile
 --iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)
 -d (debug: more info on qrcode process)
 ```
+The header can be used as a standalone. \
 The program may or may not work on a non-UTF-8 locale system.
+
 ## To compile
 ```
-gcc qrcode_generator.c -lm -o qrcodegen
+gcc main.c -lm -o qrcodegen
 ```
 On some systems *iconv* might need to be linked
 ```
-gcc qrcode_generator.c -lm -liconv -o qrcodegen
+gcc main.c -lm -liconv -o qrcodegen
 ```
 Made following [Thonky's guide](https://www.thonky.com/qr-code-tutorial/)
