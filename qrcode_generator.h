@@ -83,6 +83,13 @@ const unsigned char FORMAT_INFORMATION_MASK_STRING[FORMAT_INFORMATION_BITS_SIZE]
 #define VERSION_POSITION_THRESHOLD 6
 const unsigned char VERSION_INFORMATION_GENERATOR_POLYNOMIAL[VERSION_INFORMATION_GENERATOR_POLYNOMIAL_SIZE] = {1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1};
 
+typedef struct qrcode {
+    /* QRCODE data */
+    char* data;
+    /* QRCODE size (of the square) */
+    size_t size;
+} qrcode_t;
+
 /* QRCODE template struct */
 typedef struct qrcode_template {
     /* text to be encoded into a QRCODE (NULL terminated string) */
@@ -831,18 +838,15 @@ unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
 /* Prints the qrcode matrix to the preferred output type.
  * If the output is a file, specify the name in the 'output_file_name' variable (NULL if the output is not a file):
  * */
-void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_type, char *output_file_name) {
-
-    /* Padding is both above and below the qrcode, so add 2 to size */
-    int size = get_qrcode_size_with_padding(version);
+void print_matrix(qrcode_t qrcode, enum OUTPUT_TYPE output_type, char *output_file_name) {
 
     switch (output_type) {
         case TERMINAL:
             /* Print the qrcode to terminal (the ratio of a character is usually h/w=2, so printing 2 characters should be enough to make it readable in general)*/
             printf("\n");
-            for (int i = 0; i < size; i++) {
-                for (int j = 0; j < size; j++) {
-                    if (data[i*size + j] == QRCODE_WHITE)
+            for (int i = 0; i < qrcode.size; i++) {
+                for (int j = 0; j < qrcode.size; j++) {
+                    if (qrcode.data[i*qrcode.size + j] == QRCODE_WHITE)
                         printf("██");
                     else
                         printf("░░");
@@ -856,13 +860,13 @@ void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_typ
             ;
             FILE *image = fopen(output_file_name, "wb");
             fprintf(image, "P6\n");
-            fprintf(image, "%d %d\n", (size)*IMAGE_FACTOR, (size)*IMAGE_FACTOR);
+            fprintf(image, "%lu %lu\n", (qrcode.size)*IMAGE_FACTOR, (qrcode.size)*IMAGE_FACTOR);
             fprintf(image, "255\n");
-            for (int i = 0; i < size; i++) {
+            for (int i = 0; i < qrcode.size; i++) {
                 for (int g = 0; g < IMAGE_FACTOR; g++) {
-                    for (int j = 0; j < size; j++) {
+                    for (int j = 0; j < qrcode.size; j++) {
                         for (int f = 0; f < IMAGE_FACTOR; f++) {
-                            if (data[i*size+j] == QRCODE_WHITE) {
+                            if (qrcode.data[i*qrcode.size+j] == QRCODE_WHITE) {
                                 fprintf(image, "%c%c%c", 0xFF, 0xFF, 0xFF);
                             } else {
                                 fprintf(image, "%c%c%c", 0x00, 0x00, 0x00);
@@ -880,23 +884,22 @@ void print_matrix(unsigned char data[], int version, enum OUTPUT_TYPE output_typ
 
 
 /* Generates a QRCODE from the given template; returns NULL if something goes wrong. */
-unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
+qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     /* Input check */
-    if (!qrcode_template) { fprintf(stderr, "QRCODE ERROR: Input error, template is NULL\n"); return NULL; }
-    if (!qrcode_template->text) { fprintf(stderr, "QRCODE ERROR: Input error, text is NULL\n"); return NULL; }
-    if (qrcode_template->version < VERSION_ANY || qrcode_template->version > QRCODE_VERSIONS) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Version\n"); return NULL; }
-    if (qrcode_template->mask < MASK_ANY || qrcode_template->mask >= MASK_NUMBER) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Mask\n"); return NULL; }
+    if (!qrcode_template.text) { fprintf(stderr, "QRCODE ERROR: Input error, text is NULL\n"); return (qrcode_t) {NULL, 0}; }
+    if (qrcode_template.version < VERSION_ANY || qrcode_template.version > QRCODE_VERSIONS) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Version\n"); return (qrcode_t) {NULL, 0}; }
+    if (qrcode_template.mask < MASK_ANY || qrcode_template.mask >= MASK_NUMBER) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Mask\n"); return (qrcode_t) {NULL, 0}; }
 
     /* Information */
-    if (qrcode_template->debug) {
+    if (qrcode_template.debug) {
         printf("QRCODE INFO:\n");
-        if (qrcode_template->version == VERSION_ANY)
+        if (qrcode_template.version == VERSION_ANY)
             printf("VERSION: [ANY]\n");
         else
-            printf("VERSION: [%d]\n", qrcode_template->version);
+            printf("VERSION: [%d]\n", qrcode_template.version);
 
         printf("CORRECTION LEVEL: [");
-        switch (qrcode_template->correction_level) {
+        switch (qrcode_template.correction_level) {
             case LOW:
                 printf("LOW");
                 break;
@@ -912,13 +915,13 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
         }
         printf("]\n");
 
-        if (qrcode_template->mask == MASK_ANY)
+        if (qrcode_template.mask == MASK_ANY)
             printf("MASK: [ANY]\n");
         else
-            printf("MASK: [%d]\n", qrcode_template->mask);
+            printf("MASK: [%d]\n", qrcode_template.mask);
 
         printf("ENCODING: [");
-        switch (qrcode_template->encoding_mode) {
+        switch (qrcode_template.encoding_mode) {
             case NUMERIC:
                 printf("NUMERIC");
                 break;
@@ -934,39 +937,39 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
         }
         printf("]\n");
 
-        printf("NEGATIVE MODE: [%s]\n", qrcode_template->negative ? "ENABLED" : "DISABLED");
+        printf("NEGATIVE MODE: [%s]\n", qrcode_template.negative ? "ENABLED" : "DISABLED");
 
-        printf("ISO MODE: [%s]\n", qrcode_template->iso ? "ENABLED" : "DISABLED");
+        printf("ISO MODE: [%s]\n", qrcode_template.iso ? "ENABLED" : "DISABLED");
         printf("\n");
     }
 
     /* Pointer to the input */
-    char *input = qrcode_template->text;
+    char *input = qrcode_template.text;
 
     /* Input length and bytes */
-    size_t input_length_bytes = strlen(qrcode_template->text);
+    size_t input_length_bytes = strlen(qrcode_template.text);
     /* NOTE: Even if in UTF-8 some characters take more than 1 byte, the number of characters is assumed to be the same as the number of bytes (for legacy reasons) */
     size_t input_length_characters = input_length_bytes;
 
     /* If the encoding is different, convert it */
     bool is_input_converted = false;
-    if (qrcode_template->encoding_mode == KANJI) {
-        size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template->text, input_length_bytes, "SHIFT-JIS");
+    if (qrcode_template.encoding_mode == KANJI) {
+        size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template.text, input_length_bytes, "SHIFT-JIS");
         input = malloc(sizeof(char) * input_length_bytes_converted);
-        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return NULL; }
+        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
 
-        convert_input(qrcode_template->text, input, input_length_bytes, input_length_bytes_converted, "SHIFT-JIS");
+        convert_input(qrcode_template.text, input, input_length_bytes, input_length_bytes_converted, "SHIFT-JIS");
 
         input_length_bytes = input_length_bytes_converted;
         input_length_characters = input_length_bytes / 2; /* NOTE: Every char in SJIS is 2 bytes long */
         is_input_converted = true;
 
-    } else if (qrcode_template->encoding_mode == BYTE && qrcode_template->iso == true) {
-        size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template->text, input_length_bytes, "ISO-8859-1");
+    } else if (qrcode_template.encoding_mode == BYTE && qrcode_template.iso == true) {
+        size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template.text, input_length_bytes, "ISO-8859-1");
         input = malloc(sizeof(char) * input_length_bytes_converted);
-        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return NULL; }
+        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
 
-        convert_input(qrcode_template->text, input, input_length_bytes, input_length_bytes_converted, "ISO-8859-1");
+        convert_input(qrcode_template.text, input, input_length_bytes, input_length_bytes_converted, "ISO-8859-1");
 
         input_length_bytes = input_length_bytes_converted;
         input_length_characters = input_length_bytes; /* NOTE: Every char in ISO is 1 byte long */
@@ -974,24 +977,28 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
     }
 
     /* If not manually selected, choose best version for qrcode */
-    if (qrcode_template->version == VERSION_ANY) {
-        qrcode_template->version++;
-        while (QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].character_capacity[qrcode_template->encoding_mode] < input_length_characters &&
-                qrcode_template->version < QRCODE_VERSIONS) {
-            qrcode_template->version++;
+    if (qrcode_template.version == VERSION_ANY) {
+        qrcode_template.version++;
+        while (QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].character_capacity[qrcode_template.encoding_mode] < input_length_characters &&
+                qrcode_template.version < QRCODE_VERSIONS) {
+            qrcode_template.version++;
         }
-        if (qrcode_template->debug)
-            printf("Selecting Version from text size:\nSelected Version [%d]\n\n", qrcode_template->version);
+        if (qrcode_template.debug)
+            printf("Selecting Version from text size:\nSelected Version [%d]\n\n", qrcode_template.version);
     }
 
     /* If input is too large, abort */
-    if (QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].character_capacity[qrcode_template->encoding_mode] < input_length_characters) {
+    if (QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].character_capacity[qrcode_template.encoding_mode] < input_length_characters) {
         fprintf(stderr, "QRCODE ERROR: Input too large: [%lu] (more than %lu bytes). Can't generate code...\n",
-                input_length_characters, QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].character_capacity[qrcode_template->encoding_mode]);
-        return NULL;
+                input_length_characters, QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].character_capacity[qrcode_template.encoding_mode]);
+        return (qrcode_t) {NULL, 0};
     }
 
-    int total_information_needed = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].total_codewords * BITS_PER_BYTE;
+    /* Sizes */
+    size_t qrcode_size = get_qrcode_size(qrcode_template.version);
+    size_t padded_qrcode_size = get_qrcode_size_with_padding(qrcode_template.version);
+
+    int total_information_needed = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].total_codewords * BITS_PER_BYTE;
 
     /* Buffer containing the bits of data. */
     int information_buffer_position = 0;
@@ -999,25 +1006,25 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
 
     /* Insert byte mode into buffer */
     for (int i = 0; i < MODE_INDICATOR_SIZE; i++) {
-        information_buffer[information_buffer_position] = MODE_INDICATOR[qrcode_template->encoding_mode][i];
+        information_buffer[information_buffer_position] = MODE_INDICATOR[qrcode_template.encoding_mode][i];
         information_buffer_position++;
     }
 
     /* Insert input length into buffer */
     get_binary_from_integer(input_length_characters, information_buffer + sizeof(unsigned char)*information_buffer_position,
-            QRCODE_INFO[qrcode_template->version].character_count_indicator_size[qrcode_template->encoding_mode]);
-    information_buffer_position += QRCODE_INFO[qrcode_template->version].character_count_indicator_size[qrcode_template->encoding_mode];
+            QRCODE_INFO[qrcode_template.version].character_count_indicator_size[qrcode_template.encoding_mode]);
+    information_buffer_position += QRCODE_INFO[qrcode_template.version].character_count_indicator_size[qrcode_template.encoding_mode];
 
     /* Text processing */
     unsigned int current_number = 0; /* Needed for some computations */
-    switch (qrcode_template->encoding_mode) {
+    switch (qrcode_template.encoding_mode) {
         case NUMERIC:
             for (size_t i = 0; i < input_length_bytes; i++) {
                 if (input[i] < '0' || input[i] > '9') {
                     fprintf(stderr, "QRCODE ERROR: Invalid character for Numeric encoding found: [%c].\n", input[i]);
                     if (is_input_converted)
                         free(input);
-                    return NULL;
+                    return (qrcode_t) {NULL, 0};
                 }
                 current_number = current_number*10 + (input[i] - '0');
 
@@ -1060,7 +1067,7 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
                     fprintf(stderr, "QRCODE ERROR: Invalid character for Alphanumeric encoding found: [%c].\n", current_character);
                     if (is_input_converted)
                         free(input);
-                    return NULL;
+                    return (qrcode_t) {NULL, 0};
                 }
 
                 if ((i+1) % 2 == 0 || i == (input_length_bytes - 1)) {
@@ -1103,7 +1110,7 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
                     fprintf(stderr, "QRCODE ERROR: Invalid Character found.\n");
                     if (is_input_converted)
                         free(input);
-                    return NULL;
+                    return (qrcode_t) {NULL, 0};
                 }
             }
             break;
@@ -1138,7 +1145,7 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
     for (int i = 0; i < total_information_needed/BITS_PER_BYTE; i++)
         character_buffer[i] = get_integer_from_binary(information_buffer + sizeof(unsigned char)*i*BITS_PER_BYTE);
 
-    if (qrcode_template->debug) {
+    if (qrcode_template.debug) {
         printf("Input data (+ padding):\n");
         for (int i = 0; i < total_information_needed/BITS_PER_BYTE; i++) {
             printf("%d ", character_buffer[i]);
@@ -1159,12 +1166,12 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
     }
 
     /* Generator polynomial */
-    int generator_polynomial_size = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].error_correction_codewords_per_block + 1;
+    int generator_polynomial_size = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].error_correction_codewords_per_block + 1;
     unsigned char generator_polynomial[generator_polynomial_size];
-    int ecc_per_block = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].error_correction_codewords_per_block;
+    int ecc_per_block = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].error_correction_codewords_per_block;
     get_generator_polynomial(generator_polynomial, ecc_per_block);
 
-    if (qrcode_template->debug) {
+    if (qrcode_template.debug) {
         printf("Generator polynomial of qrcode:\n");
         for (int i = 0; i < generator_polynomial_size; i++) {
             printf("%d ", generator_polynomial[i]);
@@ -1173,12 +1180,12 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
     }
 
     /* Correction blocks (variables to make the code more readable)*/
-    int blocks1 = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].blocks_in_group1;
-    int words_per_block1 = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].data_codewords_per_block_in_group1;
-    int blocks2 = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].blocks_in_group2;
-    int words_per_block2 = QRCODE_INFO[qrcode_template->version].correction_level_info[qrcode_template->correction_level].data_codewords_per_block_in_group2;
+    int blocks1 = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].blocks_in_group1;
+    int words_per_block1 = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].data_codewords_per_block_in_group1;
+    int blocks2 = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].blocks_in_group2;
+    int words_per_block2 = QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].data_codewords_per_block_in_group2;
 
-    if (qrcode_template->debug)
+    if (qrcode_template.debug)
         printf("Group1: %d blocks, %d words per block\nGroup2: %d blocks, %d words per block\n\n", blocks1, words_per_block1, blocks2, words_per_block2);
 
     /* Buffer for the correction characters */
@@ -1202,7 +1209,7 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
                 correction_character_buffer + sizeof(unsigned char)*(blocks1*ecc_per_block + i*ecc_per_block));
     }
 
-    if (qrcode_template->debug) {
+    if (qrcode_template.debug) {
         printf("Correction data:");
         for (int i = 0; i < ecc_per_block*(blocks1+blocks2); i++) {
             if ((i % ecc_per_block) == 0)
@@ -1213,7 +1220,7 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
     }
 
     /* Fill final information buffer (data + error correction) */
-    unsigned char qrcode_buffer[total_information_needed + ecc_per_block*(blocks1+blocks2)*BITS_PER_BYTE + QRCODE_INFO[qrcode_template->version].remainder_bits];
+    unsigned char qrcode_buffer[total_information_needed + ecc_per_block*(blocks1+blocks2)*BITS_PER_BYTE + QRCODE_INFO[qrcode_template.version].remainder_bits];
     for (int i = 0; i < (words_per_block1 > words_per_block2 ? words_per_block1 : words_per_block2); i++) {
         /* If the second group exists, its blocks are always larger than those in group 1 */
         if (i < words_per_block1) {
@@ -1244,70 +1251,72 @@ unsigned char* generate_qrcode(qrcode_template_t *qrcode_template) {
                     BITS_PER_BYTE);
     }
     /* Add remainder bits */
-    for (int i = 0; i < QRCODE_INFO[qrcode_template->version].remainder_bits; i++) {
+    for (int i = 0; i < QRCODE_INFO[qrcode_template.version].remainder_bits; i++) {
         qrcode_buffer[total_information_needed + ecc_per_block*(blocks1+blocks2)*BITS_PER_BYTE + i] = 0;
     }
 
     /* Matrix to populate with all qrcode data and patterns */
-    cell_t qrcode[get_qrcode_size(qrcode_template->version) * get_qrcode_size(qrcode_template->version)];
-    for (int i = 0; i < get_qrcode_size(qrcode_template->version)*get_qrcode_size(qrcode_template->version); i++) {
+    cell_t qrcode[qrcode_size * qrcode_size];
+    for (int i = 0; i < qrcode_size*qrcode_size; i++) {
         qrcode[i].locked = UNLOCKED;
     }
 
     /* If a specific mask is selected, skip penalty computations */
-    if (qrcode_template->mask == MASK_ANY) {
+    if (qrcode_template.mask == MASK_ANY) {
         /* Select best mask and apply it */
         int mask_penalties[MASK_NUMBER] = {0};
 
         /* Apply all masks and compute their penalties */
         for (int current_mask = 0; current_mask < MASK_NUMBER; current_mask++) {
-            populate_qrcode(qrcode, qrcode_buffer, qrcode_template->version, qrcode_template->correction_level, current_mask);
-            mask_penalties[current_mask] = compute_qrcode_penalty(qrcode, qrcode_template->version);
+            populate_qrcode(qrcode, qrcode_buffer, qrcode_template.version, qrcode_template.correction_level, current_mask);
+            mask_penalties[current_mask] = compute_qrcode_penalty(qrcode, qrcode_template.version);
         }
 
         /* Compare penalties and select best mask */
-        qrcode_template->mask = 0;
+        qrcode_template.mask = 0;
         int min_penalty = mask_penalties[0];
         for (int current_mask = 0; current_mask < MASK_NUMBER; current_mask++) {
             if (min_penalty > mask_penalties[current_mask]) {
-                qrcode_template->mask = current_mask;
+                qrcode_template.mask = current_mask;
                 min_penalty = mask_penalties[current_mask];
             }
         }
-        if (qrcode_template->debug) {
+        if (qrcode_template.debug) {
             printf("Mask Penalties:\n");
             for (int i = 0; i < MASK_NUMBER; i++) {
                 printf("[%d]: %d, ", i, mask_penalties[i]);
             }
-            printf("\nApplied Mask [%d]\n", qrcode_template->mask);
+            printf("\nApplied Mask [%d]\n", qrcode_template.mask);
         }
     }
 
     /* Populate with the best mask */
-    populate_qrcode(qrcode, qrcode_buffer, qrcode_template->version, qrcode_template->correction_level, qrcode_template->mask);
+    populate_qrcode(qrcode, qrcode_buffer, qrcode_template.version, qrcode_template.correction_level, qrcode_template.mask);
 
     /* Create a qrcode grid with padding added */
-    unsigned char *qrcode_with_padding = malloc(sizeof(unsigned char) * ((get_qrcode_size_with_padding(qrcode_template->version)) * (get_qrcode_size_with_padding(qrcode_template->version))));
-    if (!qrcode_with_padding) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return NULL; }
+    qrcode_t padded_qrcode;
+    padded_qrcode.size = padded_qrcode_size;
+    padded_qrcode.data = malloc(sizeof(unsigned char) * ((padded_qrcode_size) * (padded_qrcode_size)));
+    if (!padded_qrcode.data) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
 
-    for (int i = 0; i < get_qrcode_size_with_padding(qrcode_template->version); i++) {
-        for (int j = 0; j < get_qrcode_size_with_padding(qrcode_template->version); j++) {
-            if (i >= QRCODE_PADDING && j >= QRCODE_PADDING && i < (get_qrcode_size(qrcode_template->version) + QRCODE_PADDING) && j < (get_qrcode_size(qrcode_template->version) + QRCODE_PADDING))
-                qrcode_with_padding[(get_qrcode_size_with_padding(qrcode_template->version))*(i) + j] = qrcode[(get_qrcode_size(qrcode_template->version))*(i - QRCODE_PADDING) + j - QRCODE_PADDING].value;
+    for (int i = 0; i < padded_qrcode_size; i++) {
+        for (int j = 0; j < padded_qrcode_size; j++) {
+            if (i >= QRCODE_PADDING && j >= QRCODE_PADDING && i < (qrcode_size + QRCODE_PADDING) && j < (qrcode_size + QRCODE_PADDING))
+                padded_qrcode.data[(padded_qrcode_size)*(i) + j] = qrcode[(qrcode_size)*(i - QRCODE_PADDING) + j - QRCODE_PADDING].value;
             else
-                qrcode_with_padding[(get_qrcode_size_with_padding(qrcode_template->version))*(i) + j] = QRCODE_WHITE;
+                padded_qrcode.data[(padded_qrcode_size)*(i) + j] = QRCODE_WHITE;
         }
     }
 
     /* If selected, invert values */
-    if (qrcode_template->negative)
-        for (int i = 0; i < get_qrcode_size_with_padding(qrcode_template->version); i++) {
-            for (int j = 0; j < get_qrcode_size_with_padding(qrcode_template->version); j++) {
-                qrcode_with_padding[(get_qrcode_size_with_padding(qrcode_template->version))*(i) + j] = !qrcode_with_padding[(get_qrcode_size_with_padding(qrcode_template->version))*(i) + j];
+    if (qrcode_template.negative)
+        for (int i = 0; i < padded_qrcode_size; i++) {
+            for (int j = 0; j < padded_qrcode_size; j++) {
+                padded_qrcode.data[(padded_qrcode_size)*(i) + j] = !padded_qrcode.data[(padded_qrcode_size)*(i) + j];
             }
         }
 
-    return qrcode_with_padding;
+    return padded_qrcode;
 }
 
 #endif

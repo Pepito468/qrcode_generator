@@ -1,6 +1,18 @@
 #define ENABLE_QRCODE_LIB
 #include "qrcode_generator.h"
 
+void print_help() {
+    printf("help: [parameters] inputfile\n"
+            "-v [version (1-40)] (default: depends on input size)\n"
+            "-c [correction (0: Low, 1: Medium, 2: Quartile, 3: High)] (default: 0)\n"
+            "-m [mask (0-7)] (default: best)\n"
+            "-o [filename] (print to ppm file instead of to the terminal)\n"
+            "-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)\n"
+            "--negative (invert colors)\n"
+            "--iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)\n"
+            "-d (debug: more info on qrcode process)\n");
+}
+
 int main(int argc, char **argv) {
 
     /* QRCODE template */
@@ -12,7 +24,7 @@ int main(int argc, char **argv) {
     /* argv handling */
     for (int argv_count = 1; argv_count < argc; argv_count++) {
         if (!strcmp(argv[argv_count], "-h") || !strcmp(argv[argv_count], "--help")) {
-            printf("help: [parameters] inputfile\n-v [version (1-40)] (default: depends on input size)\n-c [correction (0: Low, 1: Medium, 2: Quartile, 3: High)] (default: 0)\n-m [mask (0-7)] (default: best)\n-o [filename] (print to ppm file instead of to the terminal)\n-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)\n--negative (invert colors)\n--iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)\n-d (debug: more info on qrcode process)\n");
+            print_help();
             return 0;
         } else if (!strcmp(argv[argv_count], "-d")) {
             qrcode_template.debug = true;
@@ -59,11 +71,11 @@ int main(int argc, char **argv) {
         }
     }
 
-    unsigned char *qrcode = generate_qrcode(&qrcode_template);
-    if (!qrcode)
+    qrcode_t qrcode = generate_qrcode(qrcode_template);
+    if (!qrcode.data)
         return 1;
 
-    print_matrix(qrcode, qrcode_template.version, output_type, file_name);
+    print_matrix(qrcode, output_type, file_name);
 
     return 0;
 }
