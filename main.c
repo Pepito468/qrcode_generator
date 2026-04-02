@@ -10,6 +10,7 @@ void print_help() {
             "-e [encoding (0: Numeric, 1: Alphanumeric, 2: Byte, 3: Kanji)] (default: 2)\n"
             "--negative (invert colors)\n"
             "--iso (use ISO-8859-1 instead of UTF-8 in Byte mode for compatibility)\n"
+            "--raylib output qrcode to waylib window\n"
             "-d (debug: more info on qrcode process)\n");
 }
 
@@ -66,6 +67,8 @@ int main(int argc, char **argv) {
             qrcode_template.negative = true;
         } else if (!strcmp(argv[argv_count], "--iso")) {
             qrcode_template.iso = true;
+        } else if (!strcmp(argv[argv_count], "--raylib")) {
+            output_type = RAYLIB;
         } else {
             qrcode_template.text = argv[argv_count];
         }

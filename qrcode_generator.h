@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <math.h>
 #include <iconv.h>
+#include <raylib.h>
 
 #define BITS_PER_BYTE 8
 
@@ -27,7 +28,7 @@ typedef struct cell {
     bool locked;
 } cell_t;
 
-enum OUTPUT_TYPE {TERMINAL, FILE_PPM};
+enum OUTPUT_TYPE {TERMINAL, FILE_PPM, RAYLIB};
 
 #define QRCODE_VERSIONS 40
 #define VERSION_ANY 0
@@ -834,6 +835,7 @@ unsigned int compute_qrcode_penalty(cell_t qrcode[], int version) {
 }
 
 #define IMAGE_FACTOR 10
+#define RAYLIB_FACTOR 5
 
 /* Prints the qrcode matrix to the preferred output type.
  * If the output is a file, specify the name in the 'output_file_name' variable (NULL if the output is not a file):
@@ -876,6 +878,33 @@ void print_matrix(qrcode_t qrcode, enum OUTPUT_TYPE output_type, char *output_fi
                 }
             }
             fclose(image);
+            break;
+        case RAYLIB:
+            /* Print qrcode via raylib */
+            ;
+            const int screenWidth = RAYLIB_FACTOR * qrcode.size;
+            const int screenHeight = RAYLIB_FACTOR * qrcode.size;
+
+            InitWindow(screenWidth, screenHeight, "QRCODE");
+
+            SetTargetFPS(1);
+            while (!WindowShouldClose()) {
+                BeginDrawing();
+
+                ClearBackground(RAYWHITE);
+                
+                for (int i = 0; i < qrcode.size; i++) {
+                    for (int j = 0; j < qrcode.size; j++) {
+                        if (qrcode.data[i*qrcode.size + j] == QRCODE_WHITE)
+                            DrawRectangle(i * RAYLIB_FACTOR, j * RAYLIB_FACTOR, RAYLIB_FACTOR, RAYLIB_FACTOR, WHITE);
+                        else
+                            DrawRectangle(i * RAYLIB_FACTOR, j * RAYLIB_FACTOR, RAYLIB_FACTOR, RAYLIB_FACTOR, BLACK);
+                    }
+                }
+
+                EndDrawing();
+            }
+            CloseWindow();
             break;
     }
 }
