@@ -1,3 +1,6 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #define ENABLE_QRCODE_LIB
 #include "qrcode_generator.h"
 
@@ -72,7 +75,7 @@ int main(int argc, char **argv) {
     }
 
     qrcode_t qrcode = generate_qrcode(qrcode_template);
-    if (!qrcode.data)
+    if (!is_qrcode_valid(qrcode))
         return 1;
 
     print_matrix(qrcode, output_type, file_name);

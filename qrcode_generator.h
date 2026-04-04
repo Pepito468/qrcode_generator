@@ -880,10 +880,12 @@ void print_matrix(qrcode_t qrcode, enum OUTPUT_TYPE output_type, char *output_fi
     }
 }
 
+/* Returns true if the qrcode is valid, else false */
+bool is_qrcode_valid(qrcode_t qrcode) {
+    return (qrcode.data) ? true : false;
+}
 
-
-
-/* Generates a QRCODE from the given template; returns NULL if something goes wrong. */
+/* Generates a QRCODE from the given template. */
 qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     /* Input check */
     if (!qrcode_template.text) { fprintf(stderr, "QRCODE ERROR: Input error, text is NULL\n"); return (qrcode_t) {NULL, 0}; }
