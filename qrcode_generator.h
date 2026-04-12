@@ -90,6 +90,13 @@ typedef struct qrcode {
     size_t size;
 } qrcode_t;
 
+#define QRCODE_INVALID  \
+    (qrcode_t)          \
+    {                   \
+        .data = NULL,   \
+        .size = 0       \
+    }
+
 /* QRCODE template struct */
 typedef struct qrcode_template {
     /* text to be encoded into a QRCODE (NULL terminated string) */
@@ -112,6 +119,7 @@ typedef struct qrcode_template {
 
 /* Default template */
 #define QRCODE_TEMPLATE_DEFAULT      \
+    (qrcode_template_t)              \
     {                                \
         .text = NULL,                \
         .version = VERSION_ANY,      \
@@ -888,9 +896,9 @@ bool is_qrcode_valid(qrcode_t qrcode) {
 /* Generates a QRCODE from the given template. */
 qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     /* Input check */
-    if (!qrcode_template.text) { fprintf(stderr, "QRCODE ERROR: Input error, text is NULL\n"); return (qrcode_t) {NULL, 0}; }
-    if (qrcode_template.version < VERSION_ANY || qrcode_template.version > QRCODE_VERSIONS) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Version\n"); return (qrcode_t) {NULL, 0}; }
-    if (qrcode_template.mask < MASK_ANY || qrcode_template.mask >= MASK_NUMBER) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Mask\n"); return (qrcode_t) {NULL, 0}; }
+    if (!qrcode_template.text) { fprintf(stderr, "QRCODE ERROR: Input error, text is NULL\n"); return QRCODE_INVALID; }
+    if (qrcode_template.version < VERSION_ANY || qrcode_template.version > QRCODE_VERSIONS) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Version\n"); return QRCODE_INVALID; }
+    if (qrcode_template.mask < MASK_ANY || qrcode_template.mask >= MASK_NUMBER) { fprintf(stderr, "QRCODE ERROR: Input error, invalid Mask\n"); return QRCODE_INVALID; }
 
     /* Information */
     if (qrcode_template.debug) {
@@ -958,7 +966,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     if (qrcode_template.encoding_mode == KANJI) {
         size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template.text, input_length_bytes, "SHIFT-JIS");
         input = malloc(sizeof(char) * input_length_bytes_converted);
-        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
+        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return QRCODE_INVALID; }
 
         convert_input(qrcode_template.text, input, input_length_bytes, input_length_bytes_converted, "SHIFT-JIS");
 
@@ -969,7 +977,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     } else if (qrcode_template.encoding_mode == BYTE && qrcode_template.iso == true) {
         size_t input_length_bytes_converted = get_input_length_bytes_converted(qrcode_template.text, input_length_bytes, "ISO-8859-1");
         input = malloc(sizeof(char) * input_length_bytes_converted);
-        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
+        if (!input) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return QRCODE_INVALID; }
 
         convert_input(qrcode_template.text, input, input_length_bytes, input_length_bytes_converted, "ISO-8859-1");
 
@@ -993,7 +1001,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     if (QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].character_capacity[qrcode_template.encoding_mode] < input_length_characters) {
         fprintf(stderr, "QRCODE ERROR: Input too large: [%lu] (more than %lu bytes). Can't generate code...\n",
                 input_length_characters, QRCODE_INFO[qrcode_template.version].correction_level_info[qrcode_template.correction_level].character_capacity[qrcode_template.encoding_mode]);
-        return (qrcode_t) {NULL, 0};
+        return QRCODE_INVALID;
     }
 
     /* Sizes */
@@ -1026,7 +1034,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
                     fprintf(stderr, "QRCODE ERROR: Invalid character for Numeric encoding found: [%c].\n", input[i]);
                     if (is_input_converted)
                         free(input);
-                    return (qrcode_t) {NULL, 0};
+                    return QRCODE_INVALID;
                 }
                 current_number = current_number*10 + (input[i] - '0');
 
@@ -1069,7 +1077,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
                     fprintf(stderr, "QRCODE ERROR: Invalid character for Alphanumeric encoding found: [%c].\n", current_character);
                     if (is_input_converted)
                         free(input);
-                    return (qrcode_t) {NULL, 0};
+                    return QRCODE_INVALID;
                 }
 
                 if ((i+1) % 2 == 0 || i == (input_length_bytes - 1)) {
@@ -1112,7 +1120,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
                     fprintf(stderr, "QRCODE ERROR: Invalid Character found.\n");
                     if (is_input_converted)
                         free(input);
-                    return (qrcode_t) {NULL, 0};
+                    return QRCODE_INVALID;
                 }
             }
             break;
@@ -1299,7 +1307,7 @@ qrcode_t generate_qrcode(qrcode_template_t qrcode_template) {
     qrcode_t padded_qrcode;
     padded_qrcode.size = padded_qrcode_size;
     padded_qrcode.data = malloc(sizeof(unsigned char) * ((padded_qrcode_size) * (padded_qrcode_size)));
-    if (!padded_qrcode.data) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return (qrcode_t) {NULL, 0}; }
+    if (!padded_qrcode.data) { fprintf(stderr, "QRCODE ERROR: Memory Error\n"); return QRCODE_INVALID; }
 
     for (int i = 0; i < padded_qrcode_size; i++) {
         for (int j = 0; j < padded_qrcode_size; j++) {
